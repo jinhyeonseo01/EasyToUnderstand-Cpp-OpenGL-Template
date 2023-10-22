@@ -4,12 +4,14 @@
 ### 3rd Party
  - **GLEW, GLUT, GLM**
  - **Assimp**
-* * *
-# DevLog
 
 2023 University(한국공학대학교) Graphic APU (2.2 Grade) OpenGL Pipeline Process Develop Project
+* * *
+# DevLog
 ## <div align="center"> DevLog_1</div>
+Buffer Converter 제작.
 
+![img](./docs/BufferSystem.drawio.png)
 
 ## <div align="center"> DevLog_2 
 ### - Assimp inatall & Develop FBX Loader -
