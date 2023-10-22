@@ -1,14 +1,16 @@
 
 # OpenGL Rendering Pipeline
-
+### 3rd Party
+ - **GLEW, GLUT, GLM**
+ - **Assimp**
 * * *
 # DevLog
 
 ## <div align="center"> DevLog_1</div>
-### <div align="center"> - None - </div>
 
-## <div align="center"> DevLog_2</div>
-### <div align="center"> - Assimp inatall & Develop FBX Loader - </div>
+
+## <div align="center"> DevLog_2 
+### - Assimp inatall & Develop FBX Loader -
 ![img](./md_image/dev_first_KleeRendering.gif)
 <div align="center"> (Example : Gensine Impect - Klee) </div>
 
