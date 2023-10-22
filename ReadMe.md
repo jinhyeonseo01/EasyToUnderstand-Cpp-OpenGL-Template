@@ -4,11 +4,11 @@
 * * *
 # DevLog
 
-## <center> DevLog_1</center>
-### <center> - None - </center>
-## <center> DevLog_2</center>
+## <div align="center"> DevLog_1</div>
+### <div align="center"> - None - </div>
 
-### <center> - Assimp inatall & Develop FBX Loader - </center>
+## <div align="center"> DevLog_2</div>
+### <div align="center"> - Assimp inatall & Develop FBX Loader - </div>
 ![img](./md_image/dev_first_KleeRendering.gif)
 <div align="center"> (Example : Gensine Impect - Klee) </div>
 
