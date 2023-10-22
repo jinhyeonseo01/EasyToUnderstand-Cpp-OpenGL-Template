@@ -10,7 +10,7 @@
 
 ### <center> - Assimp inatall & Develop FBX Loader - </center>
 ![img](./md_image/dev_first_KleeRendering.gif)
-<center> (Example : Gensine Impect - Klee) </center>
+<div style="text-align: center;"> (Example : Gensine Impect - Klee) </div>
 
 ```c++
 class MeshVertex
