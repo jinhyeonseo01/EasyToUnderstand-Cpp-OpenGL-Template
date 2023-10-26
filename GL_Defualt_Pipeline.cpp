@@ -70,6 +70,10 @@ int RandomInt()
     return engine();
 }
 
+int rand2()
+{
+    return RandomInt();
+}
 
 struct hash_str {
     size_t operator()(const char* s) const {
@@ -110,7 +114,7 @@ class ModelBufferData;
 class MeshVertex
 {
 public:
-    glm::vec3 pos = glm::vec3(1,1,1);
+    glm::vec3 pos = glm::vec3(1, 1, 1);
     glm::vec3 normal = glm::vec3(1, 1, 1);
     glm::vec3 color = glm::vec3(1, 1, 1);
     glm::vec3 tangent = glm::vec3(1, 1, 1);
@@ -375,7 +379,7 @@ public:
 };
 unsigned int Shader::currentShaderID = UINT_MAX;
 unsigned int Shader::currentVAOID = 0;
-std::vector<const char*> Shader::indexAttributeNameList = std::vector<const char*>({"vertexIndex", "vertexColorIndex", "normalIndex", "uv0Index" });
+std::vector<const char*> Shader::indexAttributeNameList = std::vector<const char*>({ "vertexIndex", "vertexColorIndex", "normalIndex", "uv0Index" });
 Shader errorShader;
 
 class VBOInfo
@@ -428,7 +432,7 @@ public:
         int nameLength = strlen(name);
         strncpy((this->name = new char[nameLength + 1]()), name, nameLength);
         this->segmentCount = segmentCount;
-        
+
         this->rawBuffer;
         this->offsetCount = -1;
         this->blockCount = -1;
@@ -484,7 +488,7 @@ public:
         this->normalized = other.normalized;
         return *this;
     }
-    AttributeSegment& operator =(AttributeSegment && other)
+    AttributeSegment& operator =(AttributeSegment&& other)
     {
         this->name = other.name;
         this->segmentCount = other.segmentCount;
@@ -501,7 +505,7 @@ public:
         other.name = nullptr;
         return *this;
     }
-    
+
     AttributeSegment& ConvertRealSegment(std::shared_ptr<void> rawBuffer, unsigned int type, int offsetCount, int blockCount)
     {
         this->rawBuffer = rawBuffer;
@@ -513,7 +517,7 @@ public:
     }
     void Destroy()
     {
-        delete[] (this->name);
+        delete[](this->name);
         segmentCount = -1;
     }
     ~AttributeSegment()
@@ -627,7 +631,7 @@ public:
     }
     void Destroy()
     {
-        //delete[] rawBuffer
+        rawBuffer = nullptr;
         for (int i = 0; i < attributeInfos.size(); i++)
             attributeInfos[i].Destroy();
         attributeInfos.clear();
@@ -640,7 +644,7 @@ public:
 
     ModelInfo2()
     {
-        
+
     }
     ModelInfo2(std::vector<ModelBufferData> datas)
     {
@@ -707,7 +711,7 @@ public:
         // Remove duplicated
         std::vector<AttributeSegment> checkSumAttributes;
         //for (int i = 0; i < resultBuferDatas.size(); i++) //정방향
-        for (int i = resultBuferDatas.size()-1; i >= 0; i--) //역방향
+        for (int i = resultBuferDatas.size() - 1; i >= 0; i--) //역방향
         {
             for (int j = 0; j < resultBuferDatas[i].attributeInfos.size(); j++)
             {
@@ -798,6 +802,24 @@ public:
             memcpy(&(youngIndexbuffer[(i * 2 + 3) * typeSize]), &(oldIndexBuffer[(i + 2) * typeSize]), typeSize);
             memcpy(&(youngIndexbuffer[(i * 2 + 4) * typeSize]), &(oldIndexBuffer[(i + 2) * typeSize]), typeSize);
             memcpy(&(youngIndexbuffer[(i * 2 + 5) * typeSize]), &(oldIndexBuffer[(i + 0) * typeSize]), typeSize);
+        }
+
+        return GetFilteringBufferDatas({ resultbuffer })[0];
+    }
+    static ModelBufferData GetConvertWireToPolyIndexBuffer(const ModelBufferData& indexBuffer) // 메모리 누수 주의
+    {
+        ModelBufferData resultbuffer = indexBuffer;
+        resultbuffer.size = resultbuffer.size / 2;
+        resultbuffer.rawBuffer = std::shared_ptr<void>(Shader::GL_TypeToNewArray(resultbuffer.glType, resultbuffer.size));
+        int typeSize = Shader::GL_TypeToSizeOf(resultbuffer.glType);
+
+        auto youngIndexbuffer = ((char*)resultbuffer.rawBuffer.get());
+        auto oldIndexBuffer = ((char*)indexBuffer.rawBuffer.get());
+        for (int i = 0; i < resultbuffer.size; i += 3)
+        {
+            memcpy(&(youngIndexbuffer[(i + 0) * typeSize]), &(oldIndexBuffer[(i * 2 + 0) * typeSize]), typeSize);
+            memcpy(&(youngIndexbuffer[(i + 1) * typeSize]), &(oldIndexBuffer[(i * 2 + 2) * typeSize]), typeSize);
+            memcpy(&(youngIndexbuffer[(i + 2) * typeSize]), &(oldIndexBuffer[(i * 2 + 4) * typeSize]), typeSize);
         }
 
         return GetFilteringBufferDatas({ resultbuffer })[0];
@@ -964,7 +986,7 @@ public:
     {
         if (VBO != 0)
             glBindBuffer(GL_ARRAY_BUFFER, VBO);
-         return VBO;
+        return VBO;
     }
     void SetVBO(ModelBufferData dataBuffer)
     {
@@ -989,7 +1011,7 @@ public:
         for (int i = 0; i < this->renderBufferList.size(); i++)
         {
             BindVBO(FindVBO(this->renderBufferList[i]));
-            
+
             for (int j = 0; j < this->renderBufferList[i].attributeInfos.size(); j++)
             {
                 AttributeSegment& nowAttriInfo = this->renderBufferList[i].attributeInfos[j];
@@ -1030,8 +1052,8 @@ public:
         this->material->shader->Bind();
         BindVAO();
         int vertexCount = renderBufferList[0].size / renderBufferList[0].GetBlockCount();
-        if(vertexCount % 3 != 0)
-            std::cout << std::setw(10) << "Warring: " << "ArrayRender의 Count가 3의 배수가 아닙니다."  << "\n";
+        if (vertexCount % 3 != 0)
+            std::cout << std::setw(10) << "Warring: " << "ArrayRender의 Count가 3의 배수가 아닙니다." << "\n";
         glDrawArrays(this->material->drawType, 0, vertexCount); //todo 수정 요망.
     }
     void RenderingIndex()
@@ -1171,7 +1193,7 @@ public:
     void SetIndexBuffer(unsigned int* indexBufferAddress, int arraySize)
     {
         Bind();
-        if(EBO == UINT32_MAX)
+        if (EBO == UINT32_MAX)
             glGenBuffers(1, &EBO);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, arraySize, indexBufferAddress, GL_STATIC_DRAW);
@@ -1242,7 +1264,7 @@ Material::Material(Shader* shader)
 {
     SetShader(shader);
 }
-void Material::SetShader(Shader * shader)
+void Material::SetShader(Shader* shader)
 {
     this->shader = shader;
 }
@@ -1291,7 +1313,7 @@ ShaderCode&& CompileShader(ShaderCode&& shader, unsigned int ShaderType)
         char errorLog[8192];
         glGetShaderInfoLog(shader.shaderCodeID, 8192, NULL, errorLog); // 에러가 뭔지 보기
         SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
-        std::cerr << std::setw(10) << "ERROR: " << "Shader 컴파일 실패,  Type : " << ((shader.shaderType == GL_VERTEX_SHADER) ? "Vertex Shader" : "Fragment Shader") << "\n"<< errorLog << std::endl;
+        std::cerr << std::setw(10) << "ERROR: " << "Shader 컴파일 실패,  Type : " << ((shader.shaderType == GL_VERTEX_SHADER) ? "Vertex Shader" : "Fragment Shader") << "\n" << errorLog << std::endl;
         SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
 
         int index = 0;
@@ -1331,7 +1353,7 @@ Shader CreateShaderProgram(ShaderCode&& vertexShaderCode, ShaderCode&& fragmentS
 {
     if (!(vertexShaderCode.isShaderLoad && vertexShaderCode.isShaderCompiled))
     {
-        std::cerr << std::setw(10) << "ERROR: " << "Program 생성 실패 : 잘못된 VertexShader" << (vertexShaderCode.isShaderLoad?" - Load 되지 않은 Shader":"") << (vertexShaderCode.isShaderCompiled ? " - Compile 실패한 Shader" : "") <<"\n";
+        std::cerr << std::setw(10) << "ERROR: " << "Program 생성 실패 : 잘못된 VertexShader" << (vertexShaderCode.isShaderLoad ? " - Load 되지 않은 Shader" : "") << (vertexShaderCode.isShaderCompiled ? " - Compile 실패한 Shader" : "") << "\n";
         std::cout << std::setw(10) << "Try: " << "Shader Compile 실패 -> Error Shader 반환" << "\n";
         vertexShaderCode.Delete();
         fragmentShaderCode.Delete();
@@ -1440,8 +1462,12 @@ GLvoid Reshape(int w, int h);
 void Update(int updateID);
 void Mouse(int button, int state, int x, int y);
 void Motion(int x, int y);
-void Keyboard(unsigned char key, int x, int y);
-void KeyboardSpec(int key, int x, int y);
+void KeyboardDown(unsigned char key, int x, int y);
+void KeyboardUp(unsigned char key, int x, int y);
+void KeyboardSpecDown(int key, int x, int y);
+void KeyboardSpecUp(int key, int x, int y);
+void Keyboard(int key, bool spec, int state, int x, int y);
+
 
 //----new system----
 Shader testShader;
@@ -1514,20 +1540,20 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     testModel->SetBufferData("vertexColor", testVertexColor, sizeof(testVertexColor), 4 * sizeof(float), 0);
     */
     Assimp::Importer importer;
-    const aiScene* pScene = importer.ReadFile("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch.fbx", 
-        aiProcess_Triangulate | 
-        aiProcess_GenSmoothNormals | 
+    const aiScene* pScene = importer.ReadFile("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch.fbx",
+        aiProcess_Triangulate |
+        aiProcess_GenSmoothNormals |
         //aiProcess_GenNormals |
         aiProcess_OptimizeMeshes |// 매쉬 다 합치는거
         //aiProcess_SplitLargeMeshes // 매쉬가 너무 클때 쪼개는거
         //aiProcess_ImproveCacheLocality | 삼각형 개선. 잘 되면 켜보기
         //aiProcess_GenUVCoords | UV없으면 UV 계산하게[ 시키기
         //aiProcess_Debone | 손실없이 뼈 제거.
-        aiProcess_FlipUVs | 
+        aiProcess_FlipUVs |
         aiProcess_JoinIdenticalVertices |
         aiProcess_CalcTangentSpace |
         aiProcess_SortByPType);
-    
+
     std::cout << "Load Mesh : " << pScene->mNumMeshes << "\n";
     /* fast 퀄리티
     aiProcess_CalcTangentSpace              |  \
@@ -1555,7 +1581,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
         0 )
     */
 
-    
+
     testModel = new ModelInfo();
     testModel->Init();
     testModel->SetIndexBuffer(testIndexs, sizeof(testIndexs));
@@ -1563,7 +1589,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     testModel->SetBufferData("positionOS", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 0); // todo : 이부분 다시 체크 3* sizeof(float)로
     testModel->SetBufferData("vertexColor", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 4 * sizeof(float));
 
-    
+
     float* meshVertexBuffer;
     unsigned int* meshIndexBuffer;
     std::vector<unsigned int> meshIndexList;
@@ -1709,7 +1735,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
         testMaterial->drawType = GL_LINES;
     }
     */
-    
+
     //m->datas.push_back({ new float[8](), 8, GL_FLOAT, {{"positionOS", 4}} });
     /*
     auto clean = ModelInfo2::GetFilteringBufferDatas(m.datas);
@@ -1750,8 +1776,10 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     glutReshapeFunc(Reshape); // 다시 그리기 함수 지정
     glutMouseFunc(Mouse);
     glutMotionFunc(Motion);
-    glutKeyboardFunc(Keyboard);
-    glutSpecialFunc(KeyboardSpec);
+    glutKeyboardFunc(KeyboardDown);
+    glutKeyboardUpFunc(KeyboardUp);
+    glutSpecialFunc(KeyboardSpecDown);
+    glutSpecialUpFunc(KeyboardSpecUp);
 
     glutTimerFunc(1, Update, 16);
 
@@ -1765,10 +1793,10 @@ float angle = 0;
 GLvoid drawScene()
 {
     glClearColor(0.4f, 0.4f, 0.4f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); // 설정된 색으로 전체를 칠하기
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // 설정된 색으로 전체를 칠하기
     glEnable(GL_DEPTH_TEST);
     testShader.Bind();
-    
+
     //glEnable(GL_CULL_FACE);
     //glFrontFace(GL_BACK);
 
@@ -1776,7 +1804,7 @@ GLvoid drawScene()
     if (location != -1)
     {
         auto modelMatrix = glm::mat4(1.0f);
-        modelMatrix = glm::scale(modelMatrix, glm::vec3((float)windowY/ windowX, 1, 1));
+        modelMatrix = glm::scale(modelMatrix, glm::vec3((float)windowY / windowX, 1, 1));
         modelMatrix = glm::translate(modelMatrix, glm::vec3(0, -1, 0));
         modelMatrix = glm::rotate(modelMatrix, angle * D2R, glm::vec3(0, 1, 0));
         modelMatrix = glm::scale(modelMatrix, glm::vec3(1, 1, 1));
@@ -1789,12 +1817,12 @@ GLvoid drawScene()
         auto modelcolor = color;
         glUniform4f(location, modelcolor.x, modelcolor.y, modelcolor.z, modelcolor.w);
     }
-    
+
     */
     //testMaterial->Render(testModel)->IndexRender(testModel);
     //Material(&testShader).Render(testModel)->ArrayRender(testModel);
     //testRenderData->RenderingArray();
-    for(int i = 0; i < klee.size(); i++)
+    for (int i = 0; i < klee.size(); i++)
         klee[i]->RenderingIndex();
     //testRenderData->RenderingIndex();
     glutSwapBuffers(); // 화면에 출력하기
@@ -1803,6 +1831,9 @@ GLvoid drawScene()
 GLvoid Reshape(int w, int h) //--- 콜백 함수: 다시 그리기 콜백 함수
 {
     glViewport(0, 0, w, h);
+    windowX = w;
+    windowY = h;
+    glutPostRedisplay();
 }
 
 void Update(int updateID)
@@ -1812,17 +1843,28 @@ void Update(int updateID)
     glutTimerFunc(updateID, Update, 16);
 }
 
-void Keyboard(unsigned char key, int x, int y)
+void KeyboardDown(unsigned char key, int x, int y) { Keyboard((int)key, false, GLUT_DOWN, x, y); }
+void KeyboardUp(unsigned char key, int x, int y) { Keyboard((int)key, false, GLUT_UP, x, y); }
+void KeyboardSpecDown(int key, int x, int y) { Keyboard(key + 0xffff, true, GLUT_DOWN, x, y); }
+void KeyboardSpecUp(int key, int x, int y) { Keyboard(key + 0xffff, true, GLUT_UP, x, y); }
+void Keyboard(int key, bool spec, int state, int x, int y)
 {
+    char specKey = 0;
+    if (spec)
+        specKey = key - 0xffff;
+
     switch (key) {
-    case 'a':
+    case 'w':
+        //keyUp = state == GLUT_DOWN ? 1 : 0;
         break;
     }
-}
-void KeyboardSpec(int key, int x, int y)
-{
-    switch (key) {
+    switch (specKey)
+    {
     case GLUT_KEY_LEFT:
+        break;
+    case GLUT_KEY_RIGHT:
+        break;
+    default:
         break;
     }
 }
@@ -1836,14 +1878,14 @@ void Mouse(int button, int state, int x, int y)
     }
     if (button == GLUT_LEFT_BUTTON && state == GLUT_UP)
     {
-        
+
     }
 }
 
 void Motion(int x, int y)
 {
     glm::vec2 mousePos = glm::vec2(((float)x / windowX) * 2 - 1, (((float)y / windowY) * 2 - 1) * -1);
-    angle -= (mousePos.x - mouseX)*100;
+    angle -= (mousePos.x - mouseX) * 100;
     mouseX = mousePos.x;
 }
 
@@ -1854,40 +1896,4 @@ http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-9-vbo-indexing/
 OpenGL 좋은 튜토리얼 자료..
 
 http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-9-vbo-indexing/
-
-설계의 좋은 아이디어 떠오름.
-데이터 매칭방식을 바꾼다.
- map 다 걷어냄.
-Buffer을 집어넣을때
-array주고
-std::vector<Attribute>{로 넘기는 방식.}
-이걸 만들면 Find함수도 만들어야함.
-map 버그 많으니 안쓰는걸로..
-전부 spliut 하는 대신, Buffer 단위로 크기 통합하는 처리방식..
-
-그리고 ModelInfo랑 MeshData도 분리시키고
-지금의 VAO는 Material이랑 묶는 하위 기능으로 분화.
-
-개념적인 명확한 분리
-
-Shader - 데이터 요청기.
-Material - 데이터 주입기.
-RenderData - 파편화된 데이터 묶음  Material을 토대로 자기가 주입해야할 데이터 파생.
-Model - 모델 원시 데이터
-
-예를 들어 2머티리얼,, 2Mesh
-renderData = 머티리얼1 - model1
-renderData = 머티리얼1 - model2
-renderData = 머티리얼2 - model1
-renderData = 머티리얼2 - model2
-이렇게 파생구조를 형성해야
-앞으로 올바른 파이프라인 구성이 가능할 것 같음..
-
-SkinRenderer구성시 원시 model을 변형하고,, renderData들을 업데이트 시캬야함../
-
-
-#파이썬은 class를 여러개의 함수들을 그룹핑 하는 용도로도 쓸 수 있다.
-
-ModelData의 Index, Array형태
-이걸 포멧팅하는 Render Data의 Index, Array 형태를 구분. 사실상 무조건 Array 형태겠지만 ㅇㅇ...
 */
