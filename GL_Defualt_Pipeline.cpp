@@ -3,7 +3,19 @@
 #include <iostream>
 #include <iomanip>
 
+#include <chrono>
+#include <Thread>
+#include <time.h>
+#include <windows.h>
+
 #include <fstream>
+
+//imgui
+#include "imgui/imgui.h"
+#include "imgui_local/imgui_impl_glut.h"
+#include "imgui_local/imgui_impl_opengl3.h"
+//----------
+
 #include <gl/glew.h>
 #include <gl/freeglut.h>
 #include <gl/freeglut_ext.h>
@@ -1404,54 +1416,465 @@ Shader CreateShaderProgram(ShaderCode&& vertexShaderCode, ShaderCode&& fragmentS
 
 #pragma endregion
 
+class GameObject;
+class Component;
+class Transform;
+class World;
+class CorePipeline;
 
-
-class Transform
+class CorePipeline
 {
 public:
-    Transform* parent = nullptr;
-    std::vector<Transform*> childs;
+    static bool isGameExit;
 
+    static bool targetFrameLock;
+    static float targetFrame;
+    static float targetFrameBetween;
+    static float deltaTime;
+    static float totalTime;
+    static std::chrono::steady_clock::time_point updatePrevClock;
+    static std::chrono::steady_clock::time_point updateNowClock;
+
+    void GameExit()
+    {
+        glutLeaveMainLoop();
+        isGameExit = true;
+    }
+};
+
+bool CorePipeline::isGameExit = false;
+bool CorePipeline::targetFrameLock = true;
+float CorePipeline::targetFrame = 165;
+float CorePipeline::targetFrameBetween = ((float)1000) / CorePipeline::targetFrame;
+float CorePipeline::totalTime = 0;
+float CorePipeline::deltaTime = 1 / CorePipeline::targetFrame;
+std::chrono::steady_clock::time_point CorePipeline::updatePrevClock;
+std::chrono::steady_clock::time_point CorePipeline::updateNowClock;
+
+class World
+{
+public:
+    std::vector<std::shared_ptr<GameObject>> gameObjectList;
+    std::weak_ptr<GameObject> CreateGameObject();
+    bool AddGameObject(std::shared_ptr<GameObject> gameObject);
+    void WorldUpdate();
+    void WorldRender();
+};
+
+class GameObject : public std::enable_shared_from_this<GameObject>
+{
+public:
+    bool activePrev = false;
+    bool active = true;
+    bool destroy = false;
+
+    std::weak_ptr<GameObject> parent;
+    std::vector<std::weak_ptr<GameObject>> childs;
+
+    std::weak_ptr<Transform> transform;
+    std::vector<std::shared_ptr<Component>> componentList;
+
+    GameObject();
+    template <class T>
+    std::weak_ptr<T> AddComponent(T* component);
+    template <class T>
+    std::weak_ptr<T> GetComponent();
+    template <class T>
+    bool RemoveComponent(T* element);
+    bool RemoveAtComponent(int index);
+    template <class T>
+    void DestroyComponent(T* element);
+    void ClearComponent();
+    
+    bool SetParent(std::weak_ptr<GameObject> parent);
+    void AddChild(GameObject* child);
+
+
+    virtual void Create();
+    virtual void Start();
+    virtual void Update();
+    virtual void LateUpdate();
+    virtual void PostBehavior();
+    virtual void Enable();
+    virtual void Disable();
+    virtual void BeforeRender();
+};
+
+//template<> bool GameObject::RemoveComponent(std::weak_ptr<Component> element);
+//template<> std::weak_ptr<Component> GameObject::AddComponent(Component* element);
+//template<> std::weak_ptr<Component> GameObject::GetComponent();
+//template<> void GameObject::DestroyComponent(std::weak_ptr<Component> element);
+
+class Component
+{
+public:
+    bool activePrev = false;
+    bool active = true;
+    bool destroy = false;
+    bool isFirstUpdate = true;
+    std::weak_ptr<GameObject> gameObject;
+    virtual void Create() {}
+    virtual void Start() {  }
+    virtual void Update() {  }
+    virtual void LateUpdate() {  } //this->destroy = true;
+    virtual void Destroy() {  }
+    virtual void Enable() {  }
+    virtual void Disable() {  }
+    virtual void BeforeRender() {  }
+};
+
+
+std::weak_ptr<GameObject> World::CreateGameObject()
+{
+    std::shared_ptr<GameObject> gameObject;
+    this->AddGameObject(gameObject = std::shared_ptr<GameObject>(new GameObject()));
+    gameObject->Create();
+    return gameObject;
+}
+
+bool World::AddGameObject(std::shared_ptr<GameObject> gameObject)
+{
+    for (int i = 0; i < gameObjectList.size(); i++)
+        if (gameObjectList[i] == gameObject)
+            return false;
+    gameObjectList.push_back(gameObject);
+    return true;
+}
+void World::WorldUpdate()
+{
+    for (int i = 0; i < gameObjectList.size(); i++)
+        gameObjectList[i]->Enable();
+    for (int i = 0; i < gameObjectList.size(); i++)
+        gameObjectList[i]->Start();
+    for (int i = 0; i < gameObjectList.size(); i++)
+        gameObjectList[i]->Update();
+    for (int i = 0; i < gameObjectList.size(); i++)
+        gameObjectList[i]->LateUpdate();
+    for (int i = 0; i < gameObjectList.size(); i++)
+        gameObjectList[i]->Disable();
+    for (int i = 0; i < gameObjectList.size(); i++)
+        gameObjectList[i]->PostBehavior();
+    for (int i = 0; i < gameObjectList.size(); i++)
+        if (gameObjectList[i]->destroy)
+            gameObjectList.erase(gameObjectList.begin() + (i--));
+}
+void World::WorldRender()
+{
+    for (int i = 0; i < gameObjectList.size(); i++)
+        gameObjectList[i]->BeforeRender();
+}
+
+class Transform : public Component, public std::enable_shared_from_this<Transform>
+{
+private:
+    glm::vec3 positionPrev = glm::vec3(1234.5678f, 1234.5678f, 1234.5678f);
+    glm::vec3 rotationPrev = glm::vec3(1234.5678f, 1234.5678f, 1234.5678f);
+    glm::vec3 scalePrev = glm::vec3(1234.5678f, 1234.5678f, 1234.5678f);
+    glm::mat4 TRSCache = glm::mat4(1);
+public:
     glm::vec3 position = glm::vec3(0, 0, 0);
     glm::vec3 rotation = glm::vec3(0, 0, 0);
     glm::vec3 scale = glm::vec3(0, 0, 0);
 
-    glm::mat4 GetModelToWorldAll()
+    glm::mat4 GetModelToWorld()
+    {
+        if (positionPrev.x == position.x || positionPrev.y == position.y || positionPrev.z == position.z ||
+            rotationPrev.x == rotation.x || rotationPrev.y == rotation.y || rotationPrev.z == rotation.z ||
+            scalePrev.x == scale.x || scalePrev.y == scale.y || scalePrev.z == scale.z)
+        {
+            TRSCache = glm::mat4(1);
+            TRSCache = glm::translate(TRSCache, this->position);
+            TRSCache = glm::rotate(TRSCache, this->rotation.y, glm::vec3(0, 1, 0));
+            TRSCache = glm::rotate(TRSCache, this->rotation.x, glm::vec3(1, 0, 0));
+            TRSCache = glm::rotate(TRSCache, this->rotation.z, glm::vec3(0, 0, 1));
+            TRSCache = glm::scale(TRSCache, this->scale);
+        }
+        return TRSCache;
+    }
+    glm::mat4 GetWorldToModel()
+    {
+        return glm::inverse(TRSCache);
+    }
+
+    glm::mat4&& GetModelToWorldAll()
     {
         auto tempNow = this;
+        auto TotalTRS = glm::mat4(1);
         while (tempNow != nullptr)
         {
-            auto localTRS = glm::mat4(1);
-            localTRS = glm::translate(localTRS, tempNow->position);
-            localTRS = glm::rotate(localTRS, tempNow->rotation.y, glm::vec3(0, 1, 0));
-            localTRS = glm::rotate(localTRS, tempNow->rotation.x, glm::vec3(1, 0, 0));
-            localTRS = glm::rotate(localTRS, tempNow->rotation.z, glm::vec3(0, 0, 1));
-            localTRS = glm::scale(localTRS, tempNow->scale);
-            tempNow = tempNow->parent;
-        }
-    }
-    void SetParent(Transform* parent)
-    {
-        if (this->parent != nullptr)
-        {
-            for (int i = 0; i < this->parent->childs.size(); i++)
+            if (!tempNow->gameObject.expired())
             {
-                if (this->parent->childs[i] == this)
+                TotalTRS = TotalTRS * tempNow->GetModelToWorld();
+                if ((!tempNow->gameObject.lock()->parent.expired()) && (!tempNow->gameObject.lock()->parent.lock()->transform.expired()))
                 {
-                    this->parent->childs.erase(this->parent->childs.begin() + i);
-                    i--;
+                    tempNow = tempNow->gameObject.lock()->parent.lock()->transform.lock().get();
                 }
+                else
+                    tempNow = nullptr;
             }
+            else
+                tempNow = nullptr;
         }
-        this->parent = parent;
-        this->parent->childs.push_back(this);
+        return std::move(TotalTRS);
     }
-    void AddChild(Transform* child)
+    glm::mat4&& GetWorldToModelAll()
     {
-        child->SetParent(this);
+        return glm::inverse(this->GetModelToWorldAll());
     }
 };
 
+
+GameObject::GameObject()
+{
+    active = true;
+}
+
+void GameObject::Create()
+{
+    this->transform = this->AddComponent(new Transform());
+}
+void GameObject::Enable()
+{
+    for (int i = 0; i < componentList.size(); i++)
+    {
+        if (componentList[i] != nullptr)
+        {
+            if (((this->active) && this->active != this->activePrev) ||
+                (componentList[i]->active && componentList[i]->active != componentList[i]->activePrev))
+            {
+                componentList[i]->Enable();
+                componentList[i]->activePrev = componentList[i]->active;
+            }
+        }
+    }
+    this->activePrev = this->active;
+}
+
+void GameObject::Disable()
+{
+    for (int i = 0; i < componentList.size(); i++)
+    {
+        if (componentList[i] != nullptr)
+        {
+            if (this->destroy)
+                componentList[i]->destroy = true;
+            if (componentList[i]->destroy && componentList[i]->active)
+                componentList[i]->active = false;
+
+            if (((!this->active) && this->active != this->activePrev) ||
+                ((!componentList[i]->active) && componentList[i]->active != componentList[i]->activePrev))
+            {
+                componentList[i]->Disable();
+                componentList[i]->activePrev = componentList[i]->active;
+            }
+        }
+    }
+    this->activePrev = this->active;
+}
+
+void GameObject::Start()
+{
+    if (this->active)
+    {
+        for (int i = 0; i < componentList.size(); i++)
+        {
+            if (componentList[i] != nullptr)
+            {
+                if (componentList[i]->active)
+                {
+                    if (componentList[i]->isFirstUpdate)
+                    {
+                        componentList[i]->Start();
+                        componentList[i]->isFirstUpdate = false;
+                    }
+                }
+            }
+        }
+    }
+}
+
+void GameObject::Update()
+{
+
+    if (this->active)
+    {
+        for (int i = 0; i < componentList.size(); i++)
+        {
+            if (componentList[i] != nullptr) // 컴포넌트가 Null이 아니면서, 
+            {
+                if (componentList[i]->active)
+                {
+                    componentList[i]->Update();
+                }
+            }
+        }
+    }
+}
+void GameObject::LateUpdate()
+{
+
+    if (this->active)
+    {
+        for (int i = 0; i < componentList.size(); i++)
+        {
+            if (componentList[i] != nullptr) // 컴포넌트가 Null이 아니면서, 
+            {
+                if (componentList[i]->active)
+                {
+                    componentList[i]->LateUpdate();
+                }
+            }
+        }
+    }
+}
+
+
+void GameObject::PostBehavior()
+{
+    for (int i = 0; i < componentList.size(); i++)
+    {
+        if (componentList[i] != nullptr)
+        {
+            if (this->destroy)
+                componentList[i]->destroy = true;
+            if (componentList[i]->destroy)
+            {
+                componentList[i]->Destroy();
+            }
+        }
+    }
+    this->ClearComponent();
+
+}
+template <class T>
+void GameObject::DestroyComponent(T* element)
+{
+    Component* castingComponent = nullptr;
+    for (int i = 0; i < this->componentList.size(); i++)
+    {
+        std::shared_ptr<T> castingComponent = std::dynamic_pointer_cast<T>(this->componentList[i]);
+        if (castingComponent != nullptr && castingComponent.get() == element)
+        {
+            castingComponent->destroy = true;
+        }
+    }
+}
+
+void GameObject::BeforeRender()
+{
+    if (this->active)
+    {
+        for (int i = 0; i < componentList.size(); i++)
+        {
+            if (componentList[i] != nullptr) // 컴포넌트가 Null이 아니면서, 
+            {
+                if (componentList[i]->active && !componentList[i]->destroy)
+                {
+                    componentList[i]->BeforeRender();
+                }
+            }
+        }
+    }
+}
+
+
+template <class T>
+std::weak_ptr<T> GameObject::AddComponent(T* component)
+{
+    std::shared_ptr<T> componentShared = std::shared_ptr<T>(component);
+    std::shared_ptr<Component> castingComponent = std::dynamic_pointer_cast<Component>(componentShared);
+    if (castingComponent != nullptr)
+    {
+        componentList.push_back(castingComponent);
+        castingComponent->gameObject = shared_from_this();
+        castingComponent->Create();
+    }
+    return std::weak_ptr<T>(componentShared);
+}
+
+template <class T>
+std::weak_ptr<T> GameObject::GetComponent()
+{
+    Component* castingComponent = nullptr;
+    for (int i = 0; i < this->componentList.size(); i++)
+    {
+        auto castingComponent = std::dynamic_pointer_cast<T>(this->componentList[i]);
+        if (castingComponent != nullptr)
+        {
+            return castingComponent;
+        }
+    }
+    return castingComponent;
+}
+template <class T>
+bool GameObject::RemoveComponent(T* element)
+{
+    for (int i = 0; i < this->componentList.size(); i++)
+    {
+        std::shared_ptr<T> castingComponent = std::dynamic_pointer_cast<T>(this->componentList[i]);
+        if (castingComponent != nullptr && castingComponent.get() == element)
+        {
+            return GameObject::RemoveAtComponent(i);
+        }
+    }
+    return false;
+}
+bool GameObject::RemoveAtComponent(int index)
+{
+    this->componentList[index] = nullptr;
+    return true;
+}
+
+void GameObject::ClearComponent()
+{
+    for (int i = 0; i < this->componentList.size(); i++)
+    {
+        if (this->componentList[i] == nullptr || this->componentList[i]->destroy)
+        {
+            this->componentList.erase(this->componentList.begin() + i);
+            i--;
+        }
+    }
+}
+
+void GameObject::AddChild(GameObject* child)
+{
+    child->SetParent(shared_from_this());
+}
+
+bool GameObject::SetParent(std::weak_ptr<GameObject> parent)
+{
+    auto parentCheck = parent.lock().get();
+    bool parentIsMyChild = false;
+    while (parentCheck != nullptr)
+    {
+        if (parentCheck == this)
+        {
+            parentIsMyChild = true;
+            break;
+        }
+        parentCheck = !parentCheck->parent.expired() ? parentCheck->parent.lock().get() : nullptr;
+    }
+    if (parentIsMyChild)
+    {
+        std::cout << std::setw(10) << "Warring: " << std::setw(22) << "  Failed SetParent" << " - 부모가 자신의 자식들에 속함.\n";
+        return false;
+    }
+    if (!this->parent.expired() && this->parent.lock() != nullptr)
+    {
+        for (int i = 0; i < this->parent.lock()->childs.size(); i++)
+        {
+            if (this->parent.lock()->childs[i].lock().get() == this)
+            {
+                this->parent.lock()->childs.erase(this->parent.lock()->childs.begin() + i);
+                i--;
+            }
+        }
+    }
+    this->parent = parent;
+    this->parent.lock()->childs.push_back(shared_from_this());
+    return true;
+}
 
 int windowX = 1280;
 int windowY = 720;
@@ -1462,6 +1885,7 @@ GLvoid Reshape(int w, int h);
 void Update(int updateID);
 void Mouse(int button, int state, int x, int y);
 void Motion(int x, int y);
+void MouseWheel(int button, int dir, int x, int y);
 void KeyboardDown(unsigned char key, int x, int y);
 void KeyboardUp(unsigned char key, int x, int y);
 void KeyboardSpecDown(int key, int x, int y);
@@ -1485,12 +1909,58 @@ unsigned int testIndexs[6] = { 0, 3, 2,
 
 std::vector<RenderData*> klee;
 
+
+int frameCount = 0;
+float frameTotal = 0;
+int frame[100];
+std::chrono::steady_clock::time_point frameStartCheck;
+std::chrono::steady_clock::time_point frameCheck[100];
+void FrameInit(int count)
+{
+    frameCount = count;
+    for (int i = 0; i < frameCount; i++)
+    {
+        frame[i] = -1;
+        frameCheck[i] = std::chrono::steady_clock::now();
+    }
+    frameStartCheck = std::chrono::steady_clock::now();
+}
+void FrameUpdate()
+{
+    float tempFrameTotal = 0;
+    for (int i = 0; i < frameCount; i++)
+    {
+        if (frame[i] != -1 || (frame[i] == -1 && std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - frameStartCheck).count() >= ((1000000.0f / frameCount) * i)))
+        {
+            auto now = std::chrono::steady_clock::now();
+            if (frame[i] == -1)
+                frameCheck[i] = now;
+            if (std::chrono::duration_cast<std::chrono::microseconds>(now - frameCheck[i]).count() >= 1000000)
+            {
+                float weight = 1/((float)frameCount * 2.0f);
+                frameTotal = (frameTotal * (1 - weight) + frame[i] * weight);
+                frameCheck[i] = now;
+                frame[i] = 0;
+            }
+            frame[i]++;
+        }
+    }
+}
+
+
+static bool show_demo_window = true;
+static bool show_another_window = false;
+static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
 int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정 { //--- 윈도우 생성하기
 {
     std::cout.setf(std::ios::right);
     glutInit(&argc, argv); // glut 초기화
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH); // 디스플레이 모드 설정
-    glutInitWindowPosition(100, 100); // 윈도우의 위치 지정
+#ifdef __FREEGLUT_EXT_H__
+    glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
+#endif
+    glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_MULTISAMPLE | GLUT_DEPTH); // 디스플레이 모드 설정
+    glutInitWindowPosition(310, 180); // 윈도우의 위치 지정
     glutInitWindowSize(windowX, windowY); // 윈도우의 크기 지정
     glutCreateWindow("GLEW_1"); // 윈도우 생성
 
@@ -1504,15 +1974,25 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
         std::cout << "GLEW Init Completed\n";
     splitLine();
 
+
+    
+    
+    timeBeginPeriod(1);
+    SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+
+    //----------------------------------------------------
+
+
     errorShader = CreateShaderProgram(
-        CompileShader(LoadShader("gl_Error_Vert.glsl"), GL_VERTEX_SHADER),
-        CompileShader(LoadShader("gl_Error_Frag.glsl"), GL_FRAGMENT_SHADER));
+        CompileShader(LoadShader("./Shaders/gl_Error_Vert.glsl"), GL_VERTEX_SHADER),
+        CompileShader(LoadShader("./Shaders/gl_Error_Frag.glsl"), GL_FRAGMENT_SHADER));
     //errorShader.SetAttribute("positionOS", 4, 1, GL_FLOAT_VEC4, GL_FLOAT, GL_FALSE);
     splitLine();
 
     testShader = CreateShaderProgram(
-        CompileShader(LoadShader("gl_vertex.glsl"), GL_VERTEX_SHADER),
-        CompileShader(LoadShader("gl_fragment.glsl"), GL_FRAGMENT_SHADER));
+        CompileShader(LoadShader("./Shaders/gl_vertex.glsl"), GL_VERTEX_SHADER),
+        CompileShader(LoadShader("./Shaders/gl_fragment.glsl"), GL_FRAGMENT_SHADER));
     //testShader.SetAttribute("positionOS", 4, 1, GL_FLOAT_VEC4, GL_FLOAT, GL_FALSE);
     //testShader.SetAttribute("vertexColor", 4, 1, GL_FLOAT_VEC4, GL_FLOAT, GL_FALSE);
     splitLine();
@@ -1716,6 +2196,15 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
             { std::shared_ptr<void>(vertexBuffer), vertexSize, GL_FLOAT, {{"positionOS", 4}, {"vertexColor", 4} } } ,
             { std::shared_ptr<void>(indexBuffer), indexSize, GL_UNSIGNED_INT, {{"vertexIndex", 1}} }
         });
+
+    World world;
+    std::shared_ptr<GameObject> A = world.CreateGameObject().lock();
+    std::shared_ptr<GameObject> B = world.CreateGameObject().lock();
+    A->SetParent(B);
+    B->SetParent(A);
+    //A->Update();
+    //B->Update();
+    //obj
     /*
     if (lines)
     {
@@ -1776,6 +2265,8 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     glutReshapeFunc(Reshape); // 다시 그리기 함수 지정
     glutMouseFunc(Mouse);
     glutMotionFunc(Motion);
+    glutPassiveMotionFunc(Motion);
+    glutMouseWheelFunc(MouseWheel);
     glutKeyboardFunc(KeyboardDown);
     glutKeyboardUpFunc(KeyboardUp);
     glutSpecialFunc(KeyboardSpecDown);
@@ -1783,8 +2274,65 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
 
     glutTimerFunc(1, Update, 16);
 
-    glutMainLoop(); // 이벤트 처리 시작
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    //ImGui::StyleColorsDark();
+    ImGui::StyleColorsLight();
+
+    ImGui_ImplGLUT_Init();
+    ImGui_ImplOpenGL3_Init();
+
+    //ImGui_ImplGLUT_InstallFuncs();
+
+    std::cout << "ImGUI Init Completed\n";
+    splitLine();
+
+    //----------------------------------------------------
+
+    //glutMainLoop(); // 이벤트 처리 시작
+    //glutLeaveMainLoop()
+
+    FrameInit(10);
+
+    CorePipeline::updateNowClock = std::chrono::steady_clock::now();
+    CorePipeline::updatePrevClock = CorePipeline::updateNowClock;
+    while (!CorePipeline::isGameExit)
+    {
+        CorePipeline::targetFrameBetween = ((float)1000) / CorePipeline::targetFrame;
+        CorePipeline::updateNowClock = std::chrono::steady_clock::now();
+        auto betweenClock = std::chrono::duration_cast<std::chrono::microseconds>(CorePipeline::updateNowClock - CorePipeline::updatePrevClock);
+        CorePipeline::updatePrevClock = CorePipeline::updateNowClock;
+        auto tempDeltatime = (((float)betweenClock.count()) / 1000);
+        CorePipeline::totalTime += tempDeltatime;
+
+        if (CorePipeline::totalTime >= CorePipeline::targetFrameBetween || (!CorePipeline::targetFrameLock))
+        {
+            glutMainLoopEvent();
+            FrameUpdate();
+
+            CorePipeline::deltaTime = CorePipeline::totalTime / 1000.0f;
+
+            std::cout << frameTotal << "\n";
+            world.WorldUpdate();
+            world.WorldRender();
+            glutPostRedisplay();
+
+            if (CorePipeline::targetFrameLock)
+                while (CorePipeline::totalTime >= CorePipeline::targetFrameBetween)
+                    CorePipeline::totalTime = CorePipeline::totalTime - CorePipeline::targetFrameBetween;
+            else
+                CorePipeline::totalTime = 0;
+        }
+        else std::this_thread::sleep_for(std::chrono::microseconds(10));
+    }
+
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGLUT_Shutdown();
+    ImGui::DestroyContext();
 
     return 0;
 }
@@ -1792,8 +2340,41 @@ float mouseX = 0;
 float angle = 0;
 GLvoid drawScene()
 {
-    glClearColor(0.4f, 0.4f, 0.4f, 1.0f);
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGLUT_NewFrame();
+    ImGui::NewFrame();
+    ImGuiIO& io = ImGui::GetIO();
+    if (show_demo_window)
+        ImGui::ShowDemoWindow(&show_demo_window);
+    {
+        static float f = 0.0f;
+        static int counter = 0;
+
+        ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+
+        ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
+        ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
+        ImGui::Checkbox("Another Window", &show_another_window);
+
+        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+        ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+
+        if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
+            counter++;
+        ImGui::SameLine();
+        ImGui::Text("counter = %d", counter);
+
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+        ImGui::End();
+    }
+    ImGui::Render(); // IMGUI에 누적시키는 기능인가봄.
+
+    //glClearColor(0.4f, 0.4f, 0.4f, 1.0f);
+    glClearColor(clear_color.x, clear_color.y, clear_color.z, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // 설정된 색으로 전체를 칠하기
+
+    
+
     glEnable(GL_DEPTH_TEST);
     testShader.Bind();
 
@@ -1825,28 +2406,31 @@ GLvoid drawScene()
     for (int i = 0; i < klee.size(); i++)
         klee[i]->RenderingIndex();
     //testRenderData->RenderingIndex();
+
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glutSwapBuffers(); // 화면에 출력하기
 }
 
 GLvoid Reshape(int w, int h) //--- 콜백 함수: 다시 그리기 콜백 함수
 {
+    ImGui_ImplGLUT_ReshapeFunc(w, h);
     glViewport(0, 0, w, h);
     windowX = w;
     windowY = h;
-    glutPostRedisplay();
+    //glutPostRedisplay();
 }
 
 void Update(int updateID)
 {
 
-    glutPostRedisplay();
-    glutTimerFunc(updateID, Update, 16);
+    //glutPostRedisplay();
+    //glutTimerFunc(updateID, Update, 16);
 }
 
-void KeyboardDown(unsigned char key, int x, int y) { Keyboard((int)key, false, GLUT_DOWN, x, y); }
-void KeyboardUp(unsigned char key, int x, int y) { Keyboard((int)key, false, GLUT_UP, x, y); }
-void KeyboardSpecDown(int key, int x, int y) { Keyboard(key + 0xffff, true, GLUT_DOWN, x, y); }
-void KeyboardSpecUp(int key, int x, int y) { Keyboard(key + 0xffff, true, GLUT_UP, x, y); }
+void KeyboardDown(unsigned char key, int x, int y) { ImGui_ImplGLUT_KeyboardFunc(key, x, y); Keyboard((int)key, false, GLUT_DOWN, x, y); }
+void KeyboardUp(unsigned char key, int x, int y) { ImGui_ImplGLUT_KeyboardUpFunc(key, x, y); Keyboard((int)key, false, GLUT_UP, x, y); }
+void KeyboardSpecDown(int key, int x, int y) { ImGui_ImplGLUT_SpecialFunc(key, x, y); Keyboard(key + 0xffff, true, GLUT_DOWN, x, y); }
+void KeyboardSpecUp(int key, int x, int y) { ImGui_ImplGLUT_SpecialUpFunc(key, x, y); Keyboard(key + 0xffff, true, GLUT_UP, x, y); }
 void Keyboard(int key, bool spec, int state, int x, int y)
 {
     char specKey = 0;
@@ -1869,27 +2453,37 @@ void Keyboard(int key, bool spec, int state, int x, int y)
     }
 }
 
+bool mouseLeftPush = false;
 void Mouse(int button, int state, int x, int y)
 {
+    ImGui_ImplGLUT_MouseFunc(button, state, x, y);
     glm::vec2 mousePos = glm::vec2(((float)x / windowX) * 2 - 1, (((float)y / windowY) * 2 - 1) * -1);
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
     {
+        mouseLeftPush = true;
         mouseX = mousePos.x;
     }
     if (button == GLUT_LEFT_BUTTON && state == GLUT_UP)
     {
-
+        mouseLeftPush = false;
     }
 }
 
 void Motion(int x, int y)
 {
+    ImGui_ImplGLUT_MotionFunc(x, y);
     glm::vec2 mousePos = glm::vec2(((float)x / windowX) * 2 - 1, (((float)y / windowY) * 2 - 1) * -1);
-    angle -= (mousePos.x - mouseX) * 100;
-    mouseX = mousePos.x;
+    if (mouseLeftPush)
+    {
+        angle -= (mousePos.x - mouseX) * 100;
+        mouseX = mousePos.x;
+    }
 }
 
-
+void MouseWheel(int button, int dir, int x, int y)
+{
+    ImGui_ImplGLUT_MouseWheelFunc(button, dir, x, y);
+}
 
 /*
 http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-9-vbo-indexing/
