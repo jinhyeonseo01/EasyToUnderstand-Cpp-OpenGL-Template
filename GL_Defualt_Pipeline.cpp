@@ -49,7 +49,49 @@
 
 void splitLine()
 {
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
     std::cerr << "──────────────────────────────────────────────────────────────────────────────────────────\n";
+}
+std::ostream& Log()
+{
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+    return std::cerr;
+}
+std::ostream& ErrorLog(std::ostream& o, const char* log = "Error", int depth = 0)
+{
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+    for (int i = depth - 1; i >= 0; i--)
+        o << ((i == 0) ? "      ├" : "      │");
+    o << log;
+    o << std::setw(8);
+    o << ": ";
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
+    return o;
+}
+std::ostream& NormalLog(std::ostream& o, const char* log = "Log", int depth = 0)
+{
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+    for (int i = depth - 1; i >= 0; i--)
+        o << ((i == 0) ? "      ├" : "      │");
+    o << std::setw(8);
+    o << log;
+    o << ": ";
+    if (strcmp(log, "Try") == 0)
+        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 2);
+    if (strcmp(log, "Info") == 0)
+        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
+    return o;
+}
+std::ostream& WarringLog(std::ostream& o, const char* log = "Warring", int depth = 0)
+{
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+    for (int i = depth - 1; i >= 0; i--)
+        o << ((i == 0) ? "      ├" : "      │");
+    o << std::setw(8);
+    o << log;
+    o << ": ";
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 14);
+    return o;
 }
 
 char* filetobuf(const char* file)
@@ -57,7 +99,7 @@ char* filetobuf(const char* file)
     std::ifstream in(file, std::ios_base::binary);
     if (!in)
     {
-        std::cerr << std::setw(10) << "ERROR: " << file << "Shader File Load - Falled : 경로 잘못됨" << std::endl;
+        ErrorLog(std::cerr) << file << "Shader File Load - Falled : 경로 잘못됨\n";
         return nullptr;
     }
     in.seekg(0, std::ios_base::end);
@@ -102,6 +144,105 @@ struct equal_str {
     }
 };
 
+class AABB
+{
+public:
+    glm::vec3 min = glm::vec3(-0.01f, -0.01f, -0.01f);
+    glm::vec3 max = glm::vec3(0.01f, 0.01f, 0.01f);
+    AABB(glm::vec3 min, glm::vec3 max)
+    {
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = max.z >= min.z ? min.z : max.z;
+        this->max.z = max.z < min.z ? min.z : max.z;
+    }
+    AABB(glm::vec2 min, glm::vec2 max)
+    {
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = 0.0f;
+        this->max.z = 0.0f;
+    }
+    /*
+    AABB(glm::vec3 pos, glm::vec3 size)
+    {
+        this->min = pos - size;
+        this->min = pos + size;
+
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = max.z >= min.z ? min.z : max.z;
+        this->max.z = max.z < min.z ? min.z : max.z;
+    }
+    AABB(glm::vec2 pos, glm::vec2 size)
+    {
+        this->min = glm::vec3(pos - size, 0);
+        this->max = glm::vec3(pos + size, 0);
+
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = max.z >= min.z ? min.z : max.z;
+        this->max.z = max.z < min.z ? min.z : max.z;
+    }
+    */
+    AABB(glm::vec3 pos, glm::vec3 minSize, glm::vec3 maxSize)
+    {
+        this->min = pos - minSize;
+        this->min = pos + maxSize;
+
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = max.z >= min.z ? min.z : max.z;
+        this->max.z = max.z < min.z ? min.z : max.z;
+    }
+    AABB(glm::vec2 pos, glm::vec2 minSize, glm::vec2 maxSize)
+    {
+        this->min = glm::vec3(pos - minSize, 0);
+        this->max = glm::vec3(pos + maxSize, 0);
+
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = max.z >= min.z ? min.z : max.z;
+        this->max.z = max.z < min.z ? min.z : max.z;
+    }
+    static bool Check(AABB& a, AABB& b)
+    {
+        if (a.max.x < b.min.x || a.min.x > b.max.x) return false;
+        if (a.max.y < b.min.y || a.min.y > b.max.y) return false;
+        if (a.max.z < b.min.z || a.min.z > b.max.z) return false;
+        return true;
+    }
+    bool Check(AABB& other)
+    {
+        return AABB::Check(*this, other);
+    }
+};
+
+
 
 
 class ShaderCode;
@@ -123,6 +264,8 @@ public:
 class RenderData;
 class AttributeSegment;
 class ModelBufferData;
+class UniformStorage;
+
 class MeshVertex
 {
 public:
@@ -171,7 +314,7 @@ public:
             glDeleteShader(shaderCodeID);
         if (code != nullptr)
             delete[] code;
-        std::cout << std::setw(10) << "Try: " << "Shader Code Delete - Memory Clear Path : " << path << "\n";
+        NormalLog(std::cerr, "Try", 1) << "Shader Code Delete - Memory Clear Path : " << path << "\n";
     }
 };
 
@@ -233,11 +376,13 @@ public:
         {
             attributeInfos.clear();
 
+            NormalLog(std::cerr, "Log") << "Attribute를 읽어서 Infos에 추가." << std::endl;
+
             int count = 0;
             glGetProgramiv(this->shaderID, GL_ACTIVE_ATTRIBUTES, &count);
             if (count == 0)
             {
-                std::cout << std::setw(10) << "Info: " << "  Attribute: 해당 Shader는 아무 Attribute도 없음." << std::endl;
+                NormalLog(std::cerr, "Info", 1) << "Attribute: 해당 Shader는 아무 Attribute도 없음." << std::endl;
                 return;
             }
 
@@ -249,65 +394,41 @@ public:
             for (int idx = 0; idx < count; idx++)
             {
                 glGetActiveAttrib(this->shaderID, idx, bufSize, &length, &size, &type, name);
-                std::cout << std::setw(10) << "Info: " << "  Attribute: name:" << name << ", nameLength:" << length << ", size:" << size << ", type:" << type << "\n";
-                int elementType = GL_FLOAT;
+                NormalLog(std::cerr, "Info", 1) << "Attribute: name:" << name << ", nameLength:" << length << ", size:" << size << ", type:" << type << "\n";
+                int elementType = type;
                 int col = 1;
                 int row = size;
-                switch (type)
-                {
-                case GL_FLOAT: elementType = GL_FLOAT; col = 1; row = 1; break;
-                case GL_FLOAT_VEC2: elementType = GL_FLOAT; col = 2; row = 1; break;
-                case GL_FLOAT_VEC3: elementType = GL_FLOAT; col = 3; row = 1; break;
-                case GL_FLOAT_VEC4: elementType = GL_FLOAT; col = 4; row = 1; break;
-                case GL_FLOAT_MAT2: elementType = GL_FLOAT; col = 2; row = 2; break;
-                case GL_FLOAT_MAT3: elementType = GL_FLOAT; col = 3; row = 3; break;
-                case GL_FLOAT_MAT4: elementType = GL_FLOAT; col = 4; row = 4; break;
-                case GL_FLOAT_MAT2x3: elementType = GL_FLOAT; col = 2; row = 3; break;
-                case GL_FLOAT_MAT2x4: elementType = GL_FLOAT; col = 2; row = 4; break;
-                case GL_FLOAT_MAT3x2: elementType = GL_FLOAT; col = 3; row = 2; break;
-                case GL_FLOAT_MAT3x4: elementType = GL_FLOAT; col = 3; row = 4; break;
-                case GL_FLOAT_MAT4x2: elementType = GL_FLOAT; col = 4; row = 2; break;
-                case GL_FLOAT_MAT4x3: elementType = GL_FLOAT; col = 4; row = 3; break;
-
-                case GL_DOUBLE: elementType = GL_DOUBLE; col = 1; row = 1; break;
-                case GL_DOUBLE_VEC2: elementType = GL_DOUBLE; col = 2; row = 1; break;
-                case GL_DOUBLE_VEC3: elementType = GL_DOUBLE; col = 3; row = 1; break;
-                case GL_DOUBLE_VEC4: elementType = GL_DOUBLE; col = 4; row = 1; break;
-                case GL_DOUBLE_MAT2: elementType = GL_DOUBLE; col = 2; row = 2; break;
-                case GL_DOUBLE_MAT3: elementType = GL_DOUBLE; col = 3; row = 3; break;
-                case GL_DOUBLE_MAT4: elementType = GL_DOUBLE; col = 4; row = 4; break;
-                case GL_DOUBLE_MAT2x3: elementType = GL_DOUBLE; col = 2; row = 3; break;
-                case GL_DOUBLE_MAT2x4: elementType = GL_DOUBLE; col = 2; row = 4; break;
-                case GL_DOUBLE_MAT3x2: elementType = GL_DOUBLE; col = 3; row = 2; break;
-                case GL_DOUBLE_MAT3x4: elementType = GL_DOUBLE; col = 3; row = 4; break;
-                case GL_DOUBLE_MAT4x2: elementType = GL_DOUBLE; col = 4; row = 2; break;
-                case GL_DOUBLE_MAT4x3: elementType = GL_DOUBLE; col = 4; row = 3; break;
-
-                case GL_INT: elementType = GL_INT; col = 1; row = 1; break;
-                case GL_INT_VEC2: elementType = GL_INT; col = 2; row = 1; break;
-                case GL_INT_VEC3: elementType = GL_INT; col = 3; row = 1; break;
-                case GL_INT_VEC4: elementType = GL_INT; col = 4; row = 1; break;
-
-                case GL_UNSIGNED_INT: elementType = GL_UNSIGNED_INT; col = 1; row = 1; break;
-                case GL_UNSIGNED_INT_VEC2: elementType = GL_UNSIGNED_INT; col = 2; row = 1; break;
-                case GL_UNSIGNED_INT_VEC3: elementType = GL_UNSIGNED_INT; col = 3; row = 1; break;
-                case GL_UNSIGNED_INT_VEC4: elementType = GL_UNSIGNED_INT; col = 4; row = 1; break;
-
-                }
-                std::cout << std::setw(10) << "Try: " << "  Auto Push Attribute Info\n";
+                GL_TypeToSplitType(&type, &col, &row);
+                //NormalLog(std::cerr, "Try") << "Auto Push Attribute Info\n";
                 char* name2;
                 std::string(name).copy(name2 = new char[length + 1](), length);
                 SetAttribute(name2, col, row, type, elementType, GL_FLOAT);
-                std::cout << "\n";
             }
-            std::cout << "\n";
+
+            int uniformCount = 0;
+            glGetProgramiv(this->shaderID, GL_ACTIVE_UNIFORMS, &count);
+            for (int idx = 0; idx < count; idx++)
+            {
+                glGetActiveUniform(this->shaderID, idx, bufSize, &length, &size, &type, name);
+                NormalLog(std::cerr, "Info", 1) << "Uniform: name:" << name << ", nameLength:" << length << ", size:" << size << ", type:" << type << "\n";
+
+                int elementType = GL_FLOAT;
+                int col = 1;
+                int row = size;
+                GL_TypeToSplitType(&type, &col, &row);
+                //NormalLog(std::cerr, "Try") << "Auto Push Attribute Info\n";
+                char* name2;
+                std::string(name).copy(name2 = new char[length + 1](), length);
+                //
+            }
+
         }
     }
     void SetAttribute(const char* name, int col, int row, unsigned int rawType, unsigned int type, unsigned int normalized)
     {
         GLint positionAttribute = glGetAttribLocation(this->shaderID, name);
         if (positionAttribute == -1) {
-            std::cout << std::setw(10) << "Warring: " << std::setw(22) << "  Failed SetAttribute" << " - Shader에 존재하지 않는 Attribute. name : " << name << "\n";
+            WarringLog(std::cerr, "Warring", 2) << "Failed SetAttribute" << " - Shader에 존재하지 않는 Attribute. name : " << name << "\n";
             return;
         }
         int findIndex = -1;
@@ -319,12 +440,12 @@ public:
             }
         if (findIndex == -1)
         {
-            std::cout << std::setw(10) << "Try: " << "  New Add SetAttribute" << " - name : " << name << "\n";
+            NormalLog(std::cerr, "Try", 2) << "New Add SetAttribute" << " - name : " << name << "\n";
             attributeInfos.push_back(ShaderAttribute{ name, positionAttribute, col, row, rawType, type, normalized });
         }
         else
         {
-            std::cout << std::setw(10) << "Try: " << "  Update SetAttribute" << " - name : " << name << "\n";
+            NormalLog(std::cerr, "Try", 2) << "Update SetAttribute" << " - name : " << name << "\n";
             attributeInfos[findIndex] = ShaderAttribute{ name, positionAttribute, col, row, rawType, type, normalized };
         }
     }
@@ -332,67 +453,126 @@ public:
     {
         switch (type)
         {
-        case GL_FLOAT: return new float[size]();
-        case GL_DOUBLE: return new double[size]();
-        case GL_INT: return new int[size]();
-        case GL_BYTE: return new char[size]();
-        case GL_SHORT: return new short[size]();
-        case GL_UNSIGNED_INT: return new unsigned int[size]();
-        case GL_UNSIGNED_BYTE: return new unsigned char[size]();
-        case GL_UNSIGNED_SHORT: return new unsigned short[size]();
-        case GL_BOOL: return new bool[size]();
+        case GL_FLOAT:              return new float[size]();
+        case GL_DOUBLE:             return new double[size]();
+        case GL_INT:                return new int[size]();
+        case GL_BYTE:               return new char[size]();
+        case GL_SHORT:              return new short[size]();
+        case GL_UNSIGNED_INT:       return new unsigned int[size]();
+        case GL_UNSIGNED_BYTE:      return new unsigned char[size]();
+        case GL_UNSIGNED_SHORT:     return new unsigned short[size]();
+        case GL_BOOL:               return new bool[size]();
         }
+        std::cerr << std::setw(10) << "ERROR: " <<"Array 생성 실패, 존재하지 않는 타입.\n" << std::endl;
         return nullptr;
     }
     static int GL_TypeToSizeOf(unsigned int type)
     {
         switch (type)
         {
-        case GL_FLOAT: return sizeof(float) * 1;
-        case GL_FLOAT_VEC2: return sizeof(float) * 2;
-        case GL_FLOAT_VEC3: return sizeof(float) * 3;
-        case GL_FLOAT_VEC4: return sizeof(float) * 4;
-        case GL_FLOAT_MAT2: return sizeof(float) * 4;
-        case GL_FLOAT_MAT3: return sizeof(float) * 9;
-        case GL_FLOAT_MAT4: return sizeof(float) * 16;
-        case GL_FLOAT_MAT2x3: return sizeof(float) * 6;
-        case GL_FLOAT_MAT2x4: return sizeof(float) * 8;
-        case GL_FLOAT_MAT3x2: return sizeof(float) * 6;
-        case GL_FLOAT_MAT3x4: return sizeof(float) * 12;
-        case GL_FLOAT_MAT4x2: return sizeof(float) * 8;
-        case GL_FLOAT_MAT4x3: return sizeof(float) * 12;
+        case GL_FLOAT:              return sizeof(float) * 1;
+        case GL_FLOAT_VEC2:         return sizeof(float) * 2;
+        case GL_FLOAT_VEC3:         return sizeof(float) * 3;
+        case GL_FLOAT_VEC4:         return sizeof(float) * 4;
+        case GL_FLOAT_MAT2:         return sizeof(float) * 4;
+        case GL_FLOAT_MAT3:         return sizeof(float) * 9;
+        case GL_FLOAT_MAT4:         return sizeof(float) * 16;
+        case GL_FLOAT_MAT2x3:       return sizeof(float) * 6;
+        case GL_FLOAT_MAT2x4:       return sizeof(float) * 8;
+        case GL_FLOAT_MAT3x2:       return sizeof(float) * 6;
+        case GL_FLOAT_MAT3x4:       return sizeof(float) * 12;
+        case GL_FLOAT_MAT4x2:       return sizeof(float) * 8;
+        case GL_FLOAT_MAT4x3:       return sizeof(float) * 12;
 
-        case GL_DOUBLE: return sizeof(double) * 1;
-        case GL_DOUBLE_VEC2: return sizeof(double) * 2;
-        case GL_DOUBLE_VEC3: return sizeof(double) * 3;
-        case GL_DOUBLE_VEC4: return sizeof(double) * 4;
-        case GL_DOUBLE_MAT2: return sizeof(double) * 4;
-        case GL_DOUBLE_MAT3: return sizeof(double) * 9;
-        case GL_DOUBLE_MAT4: return sizeof(double) * 16;
-        case GL_DOUBLE_MAT2x3: return sizeof(double) * 6;
-        case GL_DOUBLE_MAT2x4: return sizeof(double) * 8;
-        case GL_DOUBLE_MAT3x2: return sizeof(double) * 6;
-        case GL_DOUBLE_MAT3x4: return sizeof(double) * 12;
-        case GL_DOUBLE_MAT4x2: return sizeof(double) * 8;
-        case GL_DOUBLE_MAT4x3: return sizeof(double) * 12;
+        case GL_DOUBLE:             return sizeof(double) * 1;
+        case GL_DOUBLE_VEC2:        return sizeof(double) * 2;
+        case GL_DOUBLE_VEC3:        return sizeof(double) * 3;
+        case GL_DOUBLE_VEC4:        return sizeof(double) * 4;
+        case GL_DOUBLE_MAT2:        return sizeof(double) * 4;
+        case GL_DOUBLE_MAT3:        return sizeof(double) * 9;
+        case GL_DOUBLE_MAT4:        return sizeof(double) * 16;
+        case GL_DOUBLE_MAT2x3:      return sizeof(double) * 6;
+        case GL_DOUBLE_MAT2x4:      return sizeof(double) * 8;
+        case GL_DOUBLE_MAT3x2:      return sizeof(double) * 6;
+        case GL_DOUBLE_MAT3x4:      return sizeof(double) * 12;
+        case GL_DOUBLE_MAT4x2:      return sizeof(double) * 8;
+        case GL_DOUBLE_MAT4x3:      return sizeof(double) * 12;
 
-        case GL_INT: return sizeof(int) * 1;
-        case GL_INT_VEC2: return sizeof(int) * 1;
-        case GL_INT_VEC3: return sizeof(int) * 1;
-        case GL_INT_VEC4: return sizeof(int) * 1;
+        case GL_INT:                return sizeof(int) * 1;
+        case GL_INT_VEC2:           return sizeof(int) * 1;
+        case GL_INT_VEC3:           return sizeof(int) * 1;
+        case GL_INT_VEC4:           return sizeof(int) * 1;
 
-        case GL_UNSIGNED_INT: return sizeof(unsigned int) * 1;
-        case GL_UNSIGNED_INT_VEC2: return sizeof(unsigned int) * 1;
-        case GL_UNSIGNED_INT_VEC3: return sizeof(unsigned int) * 1;
-        case GL_UNSIGNED_INT_VEC4: return sizeof(unsigned int) * 1;
+        case GL_UNSIGNED_INT:       return sizeof(unsigned int) * 1;
+        case GL_UNSIGNED_INT_VEC2:  return sizeof(unsigned int) * 1;
+        case GL_UNSIGNED_INT_VEC3:  return sizeof(unsigned int) * 1;
+        case GL_UNSIGNED_INT_VEC4:  return sizeof(unsigned int) * 1;
 
         }
+    }
+
+    static void GL_TypeToSplitType(unsigned int* _type, int* _col, int* _row)
+    {
+        unsigned int elementType = *_type;
+        int col = *_col;
+        int row = *_row;
+
+        switch (*_type)
+        {
+        case GL_FLOAT:              elementType = GL_FLOAT; col = 1; row = 1; break;
+        case GL_FLOAT_VEC2:         elementType = GL_FLOAT; col = 2; row = 1; break;
+        case GL_FLOAT_VEC3:         elementType = GL_FLOAT; col = 3; row = 1; break;
+        case GL_FLOAT_VEC4:         elementType = GL_FLOAT; col = 4; row = 1; break;
+        case GL_FLOAT_MAT2:         elementType = GL_FLOAT; col = 2; row = 2; break;
+        case GL_FLOAT_MAT3:         elementType = GL_FLOAT; col = 3; row = 3; break;
+        case GL_FLOAT_MAT4:         elementType = GL_FLOAT; col = 4; row = 4; break;
+        case GL_FLOAT_MAT2x3:       elementType = GL_FLOAT; col = 2; row = 3; break;
+        case GL_FLOAT_MAT2x4:       elementType = GL_FLOAT; col = 2; row = 4; break;
+        case GL_FLOAT_MAT3x2:       elementType = GL_FLOAT; col = 3; row = 2; break;
+        case GL_FLOAT_MAT3x4:       elementType = GL_FLOAT; col = 3; row = 4; break;
+        case GL_FLOAT_MAT4x2:       elementType = GL_FLOAT; col = 4; row = 2; break;
+        case GL_FLOAT_MAT4x3:       elementType = GL_FLOAT; col = 4; row = 3; break;
+
+        case GL_DOUBLE:             elementType = GL_DOUBLE; col = 1; row = 1; break;
+        case GL_DOUBLE_VEC2:        elementType = GL_DOUBLE; col = 2; row = 1; break;
+        case GL_DOUBLE_VEC3:        elementType = GL_DOUBLE; col = 3; row = 1; break;
+        case GL_DOUBLE_VEC4:        elementType = GL_DOUBLE; col = 4; row = 1; break;
+        case GL_DOUBLE_MAT2:        elementType = GL_DOUBLE; col = 2; row = 2; break;
+        case GL_DOUBLE_MAT3:        elementType = GL_DOUBLE; col = 3; row = 3; break;
+        case GL_DOUBLE_MAT4:        elementType = GL_DOUBLE; col = 4; row = 4; break;
+        case GL_DOUBLE_MAT2x3:      elementType = GL_DOUBLE; col = 2; row = 3; break;
+        case GL_DOUBLE_MAT2x4:      elementType = GL_DOUBLE; col = 2; row = 4; break;
+        case GL_DOUBLE_MAT3x2:      elementType = GL_DOUBLE; col = 3; row = 2; break;
+        case GL_DOUBLE_MAT3x4:      elementType = GL_DOUBLE; col = 3; row = 4; break;
+        case GL_DOUBLE_MAT4x2:      elementType = GL_DOUBLE; col = 4; row = 2; break;
+        case GL_DOUBLE_MAT4x3:      elementType = GL_DOUBLE; col = 4; row = 3; break;
+
+        case GL_INT:                elementType = GL_INT; col = 1; row = 1; break;
+        case GL_INT_VEC2:           elementType = GL_INT; col = 2; row = 1; break;
+        case GL_INT_VEC3:           elementType = GL_INT; col = 3; row = 1; break;
+        case GL_INT_VEC4:           elementType = GL_INT; col = 4; row = 1; break;
+
+        case GL_UNSIGNED_INT:       elementType = GL_UNSIGNED_INT; col = 1; row = 1; break;
+        case GL_UNSIGNED_INT_VEC2:  elementType = GL_UNSIGNED_INT; col = 2; row = 1; break;
+        case GL_UNSIGNED_INT_VEC3:  elementType = GL_UNSIGNED_INT; col = 3; row = 1; break;
+        case GL_UNSIGNED_INT_VEC4:  elementType = GL_UNSIGNED_INT; col = 4; row = 1; break;
+        }
+
+        *_type = elementType;
+        *_col = col;
+        *_row = row;
     }
 };
 unsigned int Shader::currentShaderID = UINT_MAX;
 unsigned int Shader::currentVAOID = 0;
 std::vector<const char*> Shader::indexAttributeNameList = std::vector<const char*>({ "vertexIndex", "vertexColorIndex", "normalIndex", "uv0Index" });
 Shader errorShader;
+
+class UniformStorage
+{
+
+};
+
 
 class VBOInfo
 {
@@ -1065,7 +1245,7 @@ public:
         BindVAO();
         int vertexCount = renderBufferList[0].size / renderBufferList[0].GetBlockCount();
         if (vertexCount % 3 != 0)
-            std::cout << std::setw(10) << "Warring: " << "ArrayRender의 Count가 3의 배수가 아닙니다." << "\n";
+            WarringLog(std::cerr, "Warring") << "ArrayRender의 Count가 3의 배수가 아닙니다." << "\n";
         glDrawArrays(this->material->drawType, 0, vertexCount); //todo 수정 요망.
     }
     void RenderingIndex()
@@ -1078,7 +1258,7 @@ public:
         }
         else
         {
-            std::cerr << std::setw(10) << "ERROR: " << "Index Buffer가 존재하지 않는 Model을 Index 렌더링\n " << std::endl;
+            ErrorLog(std::cerr, "Error") << "Index Buffer가 존재하지 않는 Model을 Index 렌더링\n " << std::endl;
         }
     }
 
@@ -1127,7 +1307,7 @@ public:
 
             if (shader != nullptr)
             {
-                std::cout << std::setw(10) << "Try: " << "Material -> Shader Connect  shaderID : " << shader << "\n";
+                NormalLog(std::cerr, "Try") << "Material -> Shader Connect  shaderID : " << shader << "\n";
                 bool result = UpdateAttrubute(shader);
                 if (!result)
                 {
@@ -1182,7 +1362,7 @@ public:
 
                 if (map_Attribute_VBO_Infos.find(nowAttriInfo.name) == map_Attribute_VBO_Infos.end())
                 {
-                    std::cerr << std::setw(10) << "ERROR: " << "Material -> Shader Connected Failed : 쉐이더에 필요한 attribute를 찾을 수 없습니다. name : " << nowAttriInfo.name << "\n";
+                    ErrorLog(std::cerr, "Error") << "Material -> Shader Connected Failed : 쉐이더에 필요한 attribute를 찾을 수 없습니다. name : " << nowAttriInfo.name << "\n";
                     return false;
                 }
                 // 무조건 어트리뷰트 있음.
@@ -1308,7 +1488,7 @@ ShaderCode LoadShader(const char* path)
     shaderCode.isShaderLoad = false;
     if (shaderCode.code != nullptr)
         shaderCode.isShaderLoad = true;
-    std::cout << std::setw(10) << "Try: " << "Shader Load Success - Path : \"" << path << "\"\n";
+    NormalLog(std::cerr, "Try") << "Shader Load Success - Path : \"" << path << "\"\n";
     return shaderCode;
 }
 ShaderCode&& CompileShader(ShaderCode&& shader, unsigned int ShaderType)
@@ -1325,7 +1505,7 @@ ShaderCode&& CompileShader(ShaderCode&& shader, unsigned int ShaderType)
         char errorLog[8192];
         glGetShaderInfoLog(shader.shaderCodeID, 8192, NULL, errorLog); // 에러가 뭔지 보기
         SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
-        std::cerr << std::setw(10) << "ERROR: " << "Shader 컴파일 실패,  Type : " << ((shader.shaderType == GL_VERTEX_SHADER) ? "Vertex Shader" : "Fragment Shader") << "\n" << errorLog << std::endl;
+        ErrorLog(std::cerr, "Error", 1) << "Shader 컴파일 실패, Type : " << ((shader.shaderType == GL_VERTEX_SHADER) ? "Vertex Shader" : "Fragment Shader") << "\n" << errorLog << std::endl;
         SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
 
         int index = 0;
@@ -1357,7 +1537,7 @@ ShaderCode&& CompileShader(ShaderCode&& shader, unsigned int ShaderType)
         return std::move(shader);
     }
     shader.isShaderCompiled = true;
-    std::cout << std::setw(10) << "Try: " << "Shader Compile Success - ShaderCodeID : " << shader.shaderCodeID << ", Type:" << ((shader.shaderType == GL_VERTEX_SHADER) ? "Vertex Shader" : "Fragment Shader") << "\n";
+    NormalLog(std::cerr, "Try", 1) << "Shader Compile Success - ShaderCodeID : " << shader.shaderCodeID << ", Type:" << ((shader.shaderType == GL_VERTEX_SHADER) ? "Vertex Shader" : "Fragment Shader") << "\n";
     return std::move(shader);
 }
 
@@ -1365,16 +1545,16 @@ Shader CreateShaderProgram(ShaderCode&& vertexShaderCode, ShaderCode&& fragmentS
 {
     if (!(vertexShaderCode.isShaderLoad && vertexShaderCode.isShaderCompiled))
     {
-        std::cerr << std::setw(10) << "ERROR: " << "Program 생성 실패 : 잘못된 VertexShader" << (vertexShaderCode.isShaderLoad ? " - Load 되지 않은 Shader" : "") << (vertexShaderCode.isShaderCompiled ? " - Compile 실패한 Shader" : "") << "\n";
-        std::cout << std::setw(10) << "Try: " << "Shader Compile 실패 -> Error Shader 반환" << "\n";
+        ErrorLog(std::cerr, "Error", 2) << "Program 생성 실패 : 잘못된 VertexShader" << (vertexShaderCode.isShaderLoad ? " - Load 되지 않은 Shader" : "") << (vertexShaderCode.isShaderCompiled ? " - Compile 실패한 Shader" : "") << "\n";
+        ErrorLog(std::cerr, "Error", 2) << "Shader Compile 실패 -> Error Shader 반환" << "\n";
         vertexShaderCode.Delete();
         fragmentShaderCode.Delete();
         return errorShader;
     }
     if (!(vertexShaderCode.isShaderLoad && vertexShaderCode.isShaderCompiled))
     {
-        std::cerr << std::setw(10) << "ERROR: " << "Program 생성 실패 : 잘못된 FragmentShader" << (fragmentShaderCode.isShaderLoad ? " - Load 되지 않은 Shader" : "") << (fragmentShaderCode.isShaderCompiled ? " - Compile 실패한 Shader" : "") << "\n";
-        std::cout << std::setw(10) << "Try: " << "Shader Compile 실패 -> Error Shader 반환" << "\n";
+        ErrorLog(std::cerr, "Error", 2) << "Program 생성 실패 : 잘못된 FragmentShader" << (fragmentShaderCode.isShaderLoad ? " - Load 되지 않은 Shader" : "") << (fragmentShaderCode.isShaderCompiled ? " - Compile 실패한 Shader" : "") << "\n";
+        ErrorLog(std::cerr, "Error", 2) << "Shader Compile 실패 -> Error Shader 반환" << "\n";
         vertexShaderCode.Delete();
         fragmentShaderCode.Delete();
         return errorShader;
@@ -1393,16 +1573,16 @@ Shader CreateShaderProgram(ShaderCode&& vertexShaderCode, ShaderCode&& fragmentS
         char errorLog[8192];
         glGetProgramInfoLog(newShader.shaderID, 8192, NULL, errorLog);
         SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
-        std::cerr << std::setw(10) << "ERROR: " << "Program 연결 실패\n " << errorLog << std::endl;
+        ErrorLog(std::cerr, "Error", 2) << "Program 연결 실패\n " << errorLog << std::endl;
         SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
-        std::cout << std::setw(10) << "Try: " << "Shader Compile 실패 -> Error Shader 반환" << "\n";
+        ErrorLog(std::cerr, "Error", 2) << "Shader Compile 실패 -> Error Shader 반환" << "\n";
         vertexShaderCode.Delete();
         fragmentShaderCode.Delete();
         newShader.Delete();
         return errorShader;
     }
 
-    std::cout << std::setw(10) << "Try: " << "Shader Program Create Completed - ShaderProgramCode : " << newShader.shaderID << ",  Path : \"" << vertexShaderCode.path << "\" / \"" << fragmentShaderCode.path << "\"\n";
+    NormalLog(std::cerr, "Try", 2) << "Shader Program Create Completed - ShaderProgramCode : " << newShader.shaderID << ",  Path : \"" << vertexShaderCode.path << "\" / \"" << fragmentShaderCode.path << "\"\n";
     vertexShaderCode.Delete();
     fragmentShaderCode.Delete();
 
@@ -1857,7 +2037,7 @@ bool GameObject::SetParent(std::weak_ptr<GameObject> parent)
     }
     if (parentIsMyChild)
     {
-        std::cout << std::setw(10) << "Warring: " << std::setw(22) << "  Failed SetParent" << " - 부모가 자신의 자식들에 속함.\n";
+        WarringLog(std::cerr, "Warring") << "Failed SetParent" << " - 부모가 자신의 자식들에 속함.\n";
         return false;
     }
     if (!this->parent.expired() && this->parent.lock() != nullptr)
@@ -1954,7 +2134,11 @@ static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
 int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정 { //--- 윈도우 생성하기
 {
+    SetWindowPos(GetConsoleWindow(), 0, 0, 0, 1500, 800, SWP_SHOWWINDOW);
+    SetConsoleTitle(L"콘솔");
     std::cout.setf(std::ios::right);
+
+
     glutInit(&argc, argv); // glut 초기화
 #ifdef __FREEGLUT_EXT_H__
     glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
@@ -1967,11 +2151,11 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) // glew 초기화
     {
-        std::cerr << "Unable to initialize GLEW" << std::endl;
+        ErrorLog(std::cerr, "Error") << "Unable to initialize GLEW\n";
         exit(EXIT_FAILURE);
     }
     else
-        std::cout << "GLEW Init Completed\n";
+        NormalLog(std::cerr, "Log") << "GLEW Init Completed\n";
     splitLine();
 
 
@@ -2001,6 +2185,13 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     testMaterial = new Material(&testShader);
     testMaterial->drawType = GL_TRIANGLES;
 
+    NormalLog(std::cout) << "테스트테스트2" << std::endl;
+    NormalLog(std::cout) << "테스트테스트" << std::endl;
+    NormalLog(std::cout, "Log", 1) << "테스트테스트" << std::endl;
+    NormalLog(std::cout, "Log", 2) << "테스트테스트" << std::endl;
+    NormalLog(std::cout, "ASDASD", 2) << "테스트테스트" << std::endl;
+    NormalLog(std::cout, "Log", 3) << "테스트테스트" << std::endl;
+    NormalLog(std::cout, "Log", 2) << "테스트테스트" << std::endl;
 
     /* 방법 1.
     float testPosition[16] = { 0, 0, 0, 1,
@@ -2034,7 +2225,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
         aiProcess_CalcTangentSpace |
         aiProcess_SortByPType);
 
-    std::cout << "Load Mesh : " << pScene->mNumMeshes << "\n";
+    Log() << "Load Mesh : " << pScene->mNumMeshes << "\n";
     /* fast 퀄리티
     aiProcess_CalcTangentSpace              |  \
         aiProcess_GenNormals                    |  \
@@ -2316,7 +2507,6 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
 
             CorePipeline::deltaTime = CorePipeline::totalTime / 1000.0f;
 
-            std::cout << frameTotal << "\n";
             world.WorldUpdate();
             world.WorldRender();
             glutPostRedisplay();
