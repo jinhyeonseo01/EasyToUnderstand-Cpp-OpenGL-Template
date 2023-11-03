@@ -19,11 +19,11 @@ void main ()
 {
 	vec4 positionWS = matrix_ModelToWorld * positionOS;
 	vec4 normalWS = normalTS;
-	positionCS = matrix_ViewProjection * positionOS;
+	positionCS = matrix_ViewProjection * positionWS;
 
 
-	gl_Position = matM * positionOS;
-	//gl_Position = positionCS;
+	//gl_Position = matM * positionOS;
+	gl_Position = positionCS;
 	colf = vertexColor;
 	normalCS = vertexColor.xyz;
 };
