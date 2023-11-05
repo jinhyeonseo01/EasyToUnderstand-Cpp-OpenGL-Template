@@ -1,5 +1,5 @@
 
-# OpenGL Rendering Pipeline
+# Cpp OpenGL Rendering Pipeline
 
 ### 3rd Party
  - **GLEW, Free GLUT, GLM**
@@ -9,7 +9,7 @@
 
 ![img](./docs/dev_4_6.gif)
 
-2023 University(한국공학대학교) Graphic APU (2.2 Grade) OpenGL Pipeline Process Develop Project
+2023 University (한국공학대학교 2학년 2학기) Graphic OpenGL Rendering Pipeline Process Develop Project
 * * *
 # DevLog
 
