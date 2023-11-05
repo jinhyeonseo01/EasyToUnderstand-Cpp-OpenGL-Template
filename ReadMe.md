@@ -2,24 +2,36 @@
 # OpenGL Rendering Pipeline
 
 ### 3rd Party
- - **GLEW, GLUT, GLM**
+ - **GLEW, Free GLUT, GLM**
  - **Assimp**
  - **ImGui**
+ - **Simple OpenGL Image Library (SOIL)**
+
+![img](./docs/dev_4_6.gif)
 
 2023 University(한국공학대학교) Graphic APU (2.2 Grade) OpenGL Pipeline Process Develop Project
 * * *
 # DevLog
-## <div align="center"> DevLog_1</div>
-### - Buffer Converter 제작 -
-![img](./docs/BufferSystem.drawio.png)
 
-## <div align="center"> DevLog_2 
-### - Assimp inatall & Develop FBX Loader -
-![img](./docs/dev_first_KleeRendering.gif)
-<div align="center"> (Example : Gensine Impect - Klee) </div>
+## <div align="center"> DevLog_4
+#### - SOIL(Image Loader) inatall inatall & Texture Mapping
+#### - Error 분석기 & 중단되지 않는 렌더링 -
+<details>
+    <summary>자세히</summary>
+
+![img](./docs/dev_4_6.gif)
+![img](./docs/dev_4_0.png)
+![img](./docs/dev_4_3.png)
+**쉐이더 및 코드상 오류 보고(Log System) & 쉐이더 오류시 중단되지 않고 Error Shader로 표현**
+
+</details>
 
 ## <div align="center"> DevLog_3 
-### - IMGUI inatall & Game Logic & Frame System -
+#### - IMGUI inatall & Game Logic & Frame System -
+
+<details>
+    <summary>자세히</summary>
+
 ![img](./docs/dev_3_0.gif)
 </br></br>
 #### 프로젝트에 추가한 모습
@@ -59,3 +71,25 @@ void World::WorldRender()
 }
 ```
 </br></br>
+
+</details>
+
+## <div align="center"> DevLog_2 
+#### - Assimp inatall & Develop FBX Loader -
+
+<details>
+    <summary>자세히</summary>
+
+![img](./docs/dev_first_KleeRendering.gif)
+<div align="center"> (Example : Gensine Impect - Klee) </div>
+
+</details>
+
+## <div align="center"> DevLog_1</div>
+#### - Buffer Converter 제작 -
+<details>
+    <summary>자세히</summary>
+
+![img](./docs/BufferSystem.drawio.png)
+
+</details>
