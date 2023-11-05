@@ -1,5 +1,7 @@
 ﻿// -------------
 #define _CRT_SECURE_NO_WARNINGS
+
+
 #include <iostream>
 #include <iomanip>
 
@@ -14,6 +16,10 @@
 #include "imgui/imgui.h"
 #include "imgui_local/imgui_impl_glut.h"
 #include "imgui_local/imgui_impl_opengl3.h"
+
+//#include "image_loader/stb_image.h"
+#include "image_loader/SOIL.h"
+
 //----------
 
 #include <gl/glew.h>
@@ -29,7 +35,9 @@
 #include <assimp/cimport.h>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
+
 // -------------
+
 
 #include <random>
 #include <math.h>
@@ -38,7 +46,9 @@
 
 #pragma region GL_Shader
 
-// glew32.lib freeglut.lib assimp-vc143-mt.lib
+// #pragma comment(lib,"./StudyDLL.lib")
+// $(SolutionDir)3rd Party\dll
+// glew32.lib freeglut.lib assimp-vc143-mt.lib SOIL.lib
 
 #define D2R 0.01745329251994327f
 #define R2D 57.2957795130823799f
@@ -49,7 +59,49 @@
 
 void splitLine()
 {
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
     std::cerr << "──────────────────────────────────────────────────────────────────────────────────────────\n";
+}
+std::ostream& Log()
+{
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+    return std::cerr;
+}
+std::ostream& ErrorLog(std::ostream& o, const char* log = "Error", int depth = 0)
+{
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+    for (int i = depth - 1; i >= 0; i--)
+        o << ((i == 0) ? "       ├ " : "       │ ");
+    o << std::setw(8);
+    o << log;
+    o << ": ";
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
+    return o;
+}
+std::ostream& NormalLog(std::ostream& o, const char* log = "Log", int depth = 0)
+{
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+    for (int i = depth - 1; i >= 0; i--)
+        o << ((i == 0) ? "       ├ " : "       │ ");
+    o << std::setw(8);
+    o << log;
+    o << ": ";
+    if (strcmp(log, "Try") == 0)
+        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 2);
+    if (strcmp(log, "Info") == 0)
+        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
+    return o;
+}
+std::ostream& WarringLog(std::ostream& o, const char* log = "Warring", int depth = 0)
+{
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
+    for (int i = depth - 1; i >= 0; i--)
+        o << ((i == 0) ? "       ├ " : "       │ ");
+    o << std::setw(8);
+    o << log;
+    o << ": ";
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 14);
+    return o;
 }
 
 char* filetobuf(const char* file)
@@ -57,7 +109,7 @@ char* filetobuf(const char* file)
     std::ifstream in(file, std::ios_base::binary);
     if (!in)
     {
-        std::cerr << std::setw(10) << "ERROR: " << file << "Shader File Load - Falled : 경로 잘못됨" << std::endl;
+        ErrorLog(std::cerr) << file << "Shader File Load - Falled : 경로 잘못됨\n";
         return nullptr;
     }
     in.seekg(0, std::ios_base::end);
@@ -102,17 +154,122 @@ struct equal_str {
     }
 };
 
+class AABB
+{
+public:
+    glm::vec3 min = glm::vec3(-0.01f, -0.01f, -0.01f);
+    glm::vec3 max = glm::vec3(0.01f, 0.01f, 0.01f);
+    AABB(glm::vec3 min, glm::vec3 max)
+    {
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = max.z >= min.z ? min.z : max.z;
+        this->max.z = max.z < min.z ? min.z : max.z;
+    }
+    AABB(glm::vec2 min, glm::vec2 max)
+    {
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = 0.0f;
+        this->max.z = 0.0f;
+    }
+    /*
+    AABB(glm::vec3 pos, glm::vec3 size)
+    {
+        this->min = pos - size;
+        this->min = pos + size;
+
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = max.z >= min.z ? min.z : max.z;
+        this->max.z = max.z < min.z ? min.z : max.z;
+    }
+    AABB(glm::vec2 pos, glm::vec2 size)
+    {
+        this->min = glm::vec3(pos - size, 0);
+        this->max = glm::vec3(pos + size, 0);
+
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = max.z >= min.z ? min.z : max.z;
+        this->max.z = max.z < min.z ? min.z : max.z;
+    }
+    */
+    AABB(glm::vec3 pos, glm::vec3 minSize, glm::vec3 maxSize)
+    {
+        this->min = pos - minSize;
+        this->min = pos + maxSize;
+
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = max.z >= min.z ? min.z : max.z;
+        this->max.z = max.z < min.z ? min.z : max.z;
+    }
+    AABB(glm::vec2 pos, glm::vec2 minSize, glm::vec2 maxSize)
+    {
+        this->min = glm::vec3(pos - minSize, 0);
+        this->max = glm::vec3(pos + maxSize, 0);
+
+        this->min.x = max.x >= min.x ? min.x : max.x;
+        this->max.x = max.x < min.x ? min.x : max.x;
+
+        this->min.y = max.y >= min.y ? min.y : max.y;
+        this->max.y = max.y < min.y ? min.y : max.y;
+
+        this->min.z = max.z >= min.z ? min.z : max.z;
+        this->max.z = max.z < min.z ? min.z : max.z;
+    }
+    static bool Check(AABB& a, AABB& b)
+    {
+        if (a.max.x < b.min.x || a.min.x > b.max.x) return false;
+        if (a.max.y < b.min.y || a.min.y > b.max.y) return false;
+        if (a.max.z < b.min.z || a.min.z > b.max.z) return false;
+        return true;
+    }
+    bool Check(AABB& other)
+    {
+        return AABB::Check(*this, other);
+    }
+};
+
+
 
 
 class ShaderCode;
 class Shader;
-class ShaderAttribute;
 class ModelInfo2;
 class ModelInfo;
+
+class UniformSegment;
+class AttributeSegment;
+class UniformStorage;
+
 class Material
 {
 public:
     Shader* shader;
+    std::shared_ptr<UniformStorage> uniformStorage;
+
     Material(Shader* shader);
     void SetShader(Shader* shader);
     unsigned int drawType = GL_TRIANGLES;
@@ -121,8 +278,272 @@ public:
     Material* Render(ModelInfo* model);
 };
 class RenderData;
-class AttributeSegment;
 class ModelBufferData;
+
+class AttributeSegment
+{
+public:
+    /*
+    * Count == 데이터 갯수
+    * Size = Count * sizeof(type) 실제 데이터 크기
+    */
+    char* name = nullptr;
+    int segmentCount = -1;
+
+    std::weak_ptr<void> rawBuffer;
+    int offsetCount = -1;
+    int blockCount = -1;
+    unsigned int rawType = GL_FLOAT;
+    unsigned int type = GL_FLOAT;
+    unsigned int typeSize = -1;
+
+    int location = -1;
+    int col = 0;
+    int row = 0;
+    unsigned int normalized = GL_FALSE;
+    
+    AttributeSegment(const char* name, int segmentCount);
+    AttributeSegment(const char* name, int location, int col, int row, unsigned int rawType, unsigned int type, unsigned int normalized);
+    AttributeSegment(const AttributeSegment& origin);
+    AttributeSegment(AttributeSegment&& other);
+    AttributeSegment& operator =(const AttributeSegment& other);
+    AttributeSegment& operator =(AttributeSegment&& other);
+    AttributeSegment& ConvertRealSegment(std::shared_ptr<void> rawBuffer, unsigned int type, int offsetCount, int blockCount);
+    void Destroy();
+    ~AttributeSegment();
+};
+
+class UniformSegment
+{
+public:
+    char* name = nullptr;
+
+    int location = -1;
+    int shaderID = -1;
+    glm::i32vec4 data_vector_int = glm::i32vec4(0,0,0,0);
+    glm::vec4 data_vector = glm::vec4(0, 0, 0, 0);
+    glm::mat2 data_matrix2 = glm::mat2(1.0f);
+    glm::mat3 data_matrix3 = glm::mat3(1.0f);
+    glm::mat4 data_matrix4 = glm::mat4(1.0f);
+
+    int col = 1;
+    int row = 1;
+    unsigned int type = GL_FLOAT;
+    unsigned int normalized = GL_FALSE;
+
+    int BindShader(Shader* shader);
+
+    UniformSegment* SetData(float data)
+    {
+        data_vector = glm::vec4(data, 0, 0, 0);
+        data_vector_int = glm::i32vec4(data, 0, 0, 0);
+        return this;
+    }
+    UniformSegment* SetData(int data)
+    {
+        data_vector = glm::vec4(data, 0, 0, 0);
+        data_vector_int = glm::i32vec4(data, 0, 0, 0);
+        return this;
+    }
+    UniformSegment* SetData(glm::vec2 data)
+    {
+        data_vector = glm::vec4(data, 0, 0);
+        data_vector_int = glm::vec4(data, 0, 0);
+        return this;
+    }
+    UniformSegment* SetData(glm::i32vec2 data)
+    {
+        data_vector = glm::vec4(data, 0, 0);
+        data_vector_int = glm::vec4(data, 0, 0);
+        return this;
+    }
+    UniformSegment* SetData(glm::vec3 data)
+    {
+        data_vector = glm::vec4(data, 0);
+        data_vector_int = glm::i32vec4(data, 0);
+        return this;
+    }
+    UniformSegment* SetData(glm::i32vec3 data)
+    {
+        data_vector = glm::vec4(data, 0);
+        data_vector_int = glm::i32vec4(data, 0);
+        return this;
+    }
+    UniformSegment* SetData(glm::vec4 data)
+    {
+        data_vector = data;
+        data_vector_int = data;
+        return this;
+    }
+    UniformSegment* SetData(glm::i32vec4 data)
+    {
+        data_vector = data;
+        data_vector_int = data;
+        return this;
+    }
+    UniformSegment* SetData(glm::mat2 data)
+    {
+        data_matrix2 = data;
+        return this;
+    }
+    UniformSegment* SetData(glm::mat3 data)
+    {
+        data_matrix3 = data;
+        return this;
+    }
+    UniformSegment* SetData(glm::mat4 data)
+    {
+        data_matrix4 = data;
+        return this;
+    }
+
+    UniformSegment(const char* name, unsigned int type);
+    UniformSegment(const UniformSegment& origin);
+    UniformSegment& operator =(const UniformSegment& origin);
+
+    UniformSegment& operator =(UniformSegment&& origin);
+    UniformSegment(UniformSegment&& origin);
+    void UpdateUniformSegment(UniformSegment& segment);
+    void Bind();
+    ~UniformSegment();
+};
+
+class UniformStorage
+{
+public:
+    std::vector<UniformSegment> uniformList;
+
+    UniformStorage()
+    {
+
+    }
+    UniformStorage(std::vector<UniformSegment> uniformList)
+    {
+        for (int i = 0; i < uniformList.size(); i++)
+            this->PushUniform(uniformList[i]);
+    }
+
+    void BindShader(Shader* shader);
+
+    UniformSegment* GetUniform(const char* name)
+    {
+        for (int i = 0; i < uniformList.size(); i++)
+        {
+            if (strcmp(uniformList[i].name, name) == 0)
+                return &uniformList[i];
+        }
+        return nullptr;
+    }
+    void SetUniformData(const char* name, float data)
+    {
+        UniformSegment* uniform = GetUniform(name);
+        if (uniform != nullptr)
+            uniform->SetData(data);
+    }
+    void SetUniformData(const char* name, int data)
+    {
+        UniformSegment* uniform = GetUniform(name);
+        if (uniform != nullptr)
+            uniform->SetData(data);
+    }
+    void SetUniformData(const char* name, glm::vec2 data)
+    {
+        UniformSegment* uniform = GetUniform(name);
+        if (uniform != nullptr)
+            uniform->SetData(data);
+    }
+    void SetUniformData(const char* name, glm::vec3 data)
+    {
+        UniformSegment* uniform = GetUniform(name);
+        if (uniform != nullptr)
+            uniform->SetData(data);
+    }
+    void SetUniformData(const char* name, glm::vec4 data)
+    {
+        UniformSegment* uniform = GetUniform(name);
+        if (uniform != nullptr)
+            uniform->SetData(data);
+    }
+    void SetUniformData(const char* name, glm::i32vec2 data)
+    {
+        UniformSegment* uniform = GetUniform(name);
+        if (uniform != nullptr)
+            uniform->SetData(data);
+    }
+    void SetUniformData(const char* name, glm::i32vec3 data)
+    {
+        UniformSegment* uniform = GetUniform(name);
+        if (uniform != nullptr)
+            uniform->SetData(data);
+    }
+    void SetUniformData(const char* name, glm::i32vec4 data)
+    {
+        UniformSegment* uniform = GetUniform(name);
+        if (uniform != nullptr)
+            uniform->SetData(data);
+    }
+
+    void PushUniform(UniformSegment* segment)
+    {
+        auto p_segment = segment;
+        PushUniform(*p_segment);
+    }
+    bool UpdateUniform(UniformSegment* segment)
+    {
+        auto p_segment = segment;
+        UpdateUniform(*segment);
+    }
+    void PushUniform(UniformSegment&& segment)
+    {
+        PushUniform(segment);
+    }
+    bool UpdateUniform(UniformSegment&& segment)
+    {
+        UpdateUniform(segment);
+    }
+    void PushUniform(UniformSegment& segment)
+    {
+        int index = -1;
+        for (int i = 0; i < uniformList.size(); i++)
+        {
+            if (strcmp(uniformList[i].name, segment.name) == 0)
+                index = i;
+        }
+        if (index == -1)
+        {
+            uniformList.push_back(UniformSegment(segment.name, segment.type));
+            index = uniformList.size() - 1;
+        }
+        uniformList[index].UpdateUniformSegment(segment);
+    }
+    bool UpdateUniform(UniformSegment& segment)
+    {
+        int index = -1;
+        for (int i = 0; i < uniformList.size(); i++)
+        {
+            if (strcmp(uniformList[i].name, segment.name) == 0)
+                index = i;
+        }
+        if (index != -1)
+        {
+            uniformList[index].UpdateUniformSegment(segment);
+            return true;
+        }
+
+        return false;
+    }
+    void PushUniforms(UniformStorage& otherStorage)
+    {
+        for (int i = 0; i < otherStorage.uniformList.size(); i++)
+            PushUniform(otherStorage.uniformList[i]);
+    }
+    void UpdateUniforms(UniformStorage& otherStorage)
+    {
+        for (int i = 0; i < otherStorage.uniformList.size(); i++)
+            UpdateUniform(otherStorage.uniformList[i]);
+    }
+};
+
 class MeshVertex
 {
 public:
@@ -171,10 +592,10 @@ public:
             glDeleteShader(shaderCodeID);
         if (code != nullptr)
             delete[] code;
-        std::cout << std::setw(10) << "Try: " << "Shader Code Delete - Memory Clear Path : " << path << "\n";
+        NormalLog(std::cerr, "Try", 1) << "Shader Code Delete - Memory Clear Path : " << path << "\n";
     }
 };
-
+/*
 class ShaderAttribute
 {
 public:
@@ -197,7 +618,7 @@ public:
     unsigned int type = GL_FLOAT;
     unsigned int normalized = GL_FALSE;
 };
-
+*/
 class Shader
 {
 public:
@@ -210,7 +631,13 @@ public:
     ShaderCode fragmentCode;
     bool isCompleted = false;
 
-    std::vector<ShaderAttribute> attributeInfos;
+    std::vector<AttributeSegment> attributeInfos;
+    std::shared_ptr<UniformStorage> uniformStorage;
+
+    Shader()
+    {
+        uniformStorage = std::shared_ptr<UniformStorage>(new UniformStorage());
+    }
 
     void Delete()
     {
@@ -233,11 +660,13 @@ public:
         {
             attributeInfos.clear();
 
+            NormalLog(std::cerr, "Log") << "Attribute를 읽어서 Infos에 추가." << std::endl;
+
             int count = 0;
             glGetProgramiv(this->shaderID, GL_ACTIVE_ATTRIBUTES, &count);
             if (count == 0)
             {
-                std::cout << std::setw(10) << "Info: " << "  Attribute: 해당 Shader는 아무 Attribute도 없음." << std::endl;
+                NormalLog(std::cerr, "Info", 1) << "Attribute: 해당 Shader는 아무 Attribute도 없음." << std::endl;
                 return;
             }
 
@@ -249,65 +678,42 @@ public:
             for (int idx = 0; idx < count; idx++)
             {
                 glGetActiveAttrib(this->shaderID, idx, bufSize, &length, &size, &type, name);
-                std::cout << std::setw(10) << "Info: " << "  Attribute: name:" << name << ", nameLength:" << length << ", size:" << size << ", type:" << type << "\n";
-                int elementType = GL_FLOAT;
+                NormalLog(std::cerr, "Info", 1) << "Attribute: name:" << name << ", nameLength:" << length << ", size:" << size << ", type:" << type << "\n";
+                int elementType = type;
                 int col = 1;
                 int row = size;
-                switch (type)
-                {
-                case GL_FLOAT: elementType = GL_FLOAT; col = 1; row = 1; break;
-                case GL_FLOAT_VEC2: elementType = GL_FLOAT; col = 2; row = 1; break;
-                case GL_FLOAT_VEC3: elementType = GL_FLOAT; col = 3; row = 1; break;
-                case GL_FLOAT_VEC4: elementType = GL_FLOAT; col = 4; row = 1; break;
-                case GL_FLOAT_MAT2: elementType = GL_FLOAT; col = 2; row = 2; break;
-                case GL_FLOAT_MAT3: elementType = GL_FLOAT; col = 3; row = 3; break;
-                case GL_FLOAT_MAT4: elementType = GL_FLOAT; col = 4; row = 4; break;
-                case GL_FLOAT_MAT2x3: elementType = GL_FLOAT; col = 2; row = 3; break;
-                case GL_FLOAT_MAT2x4: elementType = GL_FLOAT; col = 2; row = 4; break;
-                case GL_FLOAT_MAT3x2: elementType = GL_FLOAT; col = 3; row = 2; break;
-                case GL_FLOAT_MAT3x4: elementType = GL_FLOAT; col = 3; row = 4; break;
-                case GL_FLOAT_MAT4x2: elementType = GL_FLOAT; col = 4; row = 2; break;
-                case GL_FLOAT_MAT4x3: elementType = GL_FLOAT; col = 4; row = 3; break;
-
-                case GL_DOUBLE: elementType = GL_DOUBLE; col = 1; row = 1; break;
-                case GL_DOUBLE_VEC2: elementType = GL_DOUBLE; col = 2; row = 1; break;
-                case GL_DOUBLE_VEC3: elementType = GL_DOUBLE; col = 3; row = 1; break;
-                case GL_DOUBLE_VEC4: elementType = GL_DOUBLE; col = 4; row = 1; break;
-                case GL_DOUBLE_MAT2: elementType = GL_DOUBLE; col = 2; row = 2; break;
-                case GL_DOUBLE_MAT3: elementType = GL_DOUBLE; col = 3; row = 3; break;
-                case GL_DOUBLE_MAT4: elementType = GL_DOUBLE; col = 4; row = 4; break;
-                case GL_DOUBLE_MAT2x3: elementType = GL_DOUBLE; col = 2; row = 3; break;
-                case GL_DOUBLE_MAT2x4: elementType = GL_DOUBLE; col = 2; row = 4; break;
-                case GL_DOUBLE_MAT3x2: elementType = GL_DOUBLE; col = 3; row = 2; break;
-                case GL_DOUBLE_MAT3x4: elementType = GL_DOUBLE; col = 3; row = 4; break;
-                case GL_DOUBLE_MAT4x2: elementType = GL_DOUBLE; col = 4; row = 2; break;
-                case GL_DOUBLE_MAT4x3: elementType = GL_DOUBLE; col = 4; row = 3; break;
-
-                case GL_INT: elementType = GL_INT; col = 1; row = 1; break;
-                case GL_INT_VEC2: elementType = GL_INT; col = 2; row = 1; break;
-                case GL_INT_VEC3: elementType = GL_INT; col = 3; row = 1; break;
-                case GL_INT_VEC4: elementType = GL_INT; col = 4; row = 1; break;
-
-                case GL_UNSIGNED_INT: elementType = GL_UNSIGNED_INT; col = 1; row = 1; break;
-                case GL_UNSIGNED_INT_VEC2: elementType = GL_UNSIGNED_INT; col = 2; row = 1; break;
-                case GL_UNSIGNED_INT_VEC3: elementType = GL_UNSIGNED_INT; col = 3; row = 1; break;
-                case GL_UNSIGNED_INT_VEC4: elementType = GL_UNSIGNED_INT; col = 4; row = 1; break;
-
-                }
-                std::cout << std::setw(10) << "Try: " << "  Auto Push Attribute Info\n";
+                GL_TypeToSplitType(&type, &col, &row);
+                //NormalLog(std::cerr, "Try") << "Auto Push Attribute Info\n";
                 char* name2;
                 std::string(name).copy(name2 = new char[length + 1](), length);
                 SetAttribute(name2, col, row, type, elementType, GL_FLOAT);
-                std::cout << "\n";
+                delete[] name2;
             }
-            std::cout << "\n";
+
+            int uniformCount = 0;
+            glGetProgramiv(this->shaderID, GL_ACTIVE_UNIFORMS, &count);
+            for (int idx = 0; idx < count; idx++)
+            {
+                glGetActiveUniform(this->shaderID, idx, bufSize, &length, &size, &type, name);
+                NormalLog(std::cerr, "Info", 1) << "Uniform: name:" << name << ", nameLength:" << length << ", size:" << size << ", type:" << type << "\n";
+
+                int elementType = GL_FLOAT;
+                int col = 1;
+                int row = size;
+                char* name2;
+                std::string(name).copy(name2 = new char[length + 1](), length);
+                SetUniform(name, type);
+                delete[] name2;
+                //
+            }
+            uniformStorage->BindShader(this);
         }
     }
     void SetAttribute(const char* name, int col, int row, unsigned int rawType, unsigned int type, unsigned int normalized)
     {
         GLint positionAttribute = glGetAttribLocation(this->shaderID, name);
         if (positionAttribute == -1) {
-            std::cout << std::setw(10) << "Warring: " << std::setw(22) << "  Failed SetAttribute" << " - Shader에 존재하지 않는 Attribute. name : " << name << "\n";
+            WarringLog(std::cerr, "Warring", 2) << "Failed SetAttribute" << " - Shader에 존재하지 않는 Attribute. name : " << name << "\n";
             return;
         }
         int findIndex = -1;
@@ -319,80 +725,201 @@ public:
             }
         if (findIndex == -1)
         {
-            std::cout << std::setw(10) << "Try: " << "  New Add SetAttribute" << " - name : " << name << "\n";
-            attributeInfos.push_back(ShaderAttribute{ name, positionAttribute, col, row, rawType, type, normalized });
+            NormalLog(std::cerr, "Try", 2) << "New Add SetAttribute" << " - name : " << name << "\n";
+            attributeInfos.push_back(AttributeSegment( name, positionAttribute, col, row, rawType, type, normalized ));
         }
         else
         {
-            std::cout << std::setw(10) << "Try: " << "  Update SetAttribute" << " - name : " << name << "\n";
-            attributeInfos[findIndex] = ShaderAttribute{ name, positionAttribute, col, row, rawType, type, normalized };
+            NormalLog(std::cerr, "Try", 2) << "Update SetAttribute" << " - name : " << name << "\n";
+            attributeInfos[findIndex] = AttributeSegment( name, positionAttribute, col, row, rawType, type, normalized );
         }
     }
+    void SetUniform(const char* name, unsigned int type)
+    {
+        GLint location = glGetUniformLocation(this->shaderID, name);
+        if (location == -1) {
+            WarringLog(std::cerr, "Warring", 2) << "Failed SetSetUniform" << " - Shader에 존재하지 않는 Attribute. name : " << name << "\n";
+            return;
+        }
+        NormalLog(std::cerr, "Try", 2) << "Add Uniform" << " - name : " << name << "\n";
+        uniformStorage->PushUniform(UniformSegment(name, type));
+    }
+
     static void* GL_TypeToNewArray(unsigned int type, int size)
     {
         switch (type)
         {
-        case GL_FLOAT: return new float[size]();
-        case GL_DOUBLE: return new double[size]();
-        case GL_INT: return new int[size]();
-        case GL_BYTE: return new char[size]();
-        case GL_SHORT: return new short[size]();
-        case GL_UNSIGNED_INT: return new unsigned int[size]();
-        case GL_UNSIGNED_BYTE: return new unsigned char[size]();
-        case GL_UNSIGNED_SHORT: return new unsigned short[size]();
-        case GL_BOOL: return new bool[size]();
+        case GL_FLOAT:              return new float[size]();
+        case GL_DOUBLE:             return new double[size]();
+        case GL_INT:                return new int[size]();
+        case GL_BYTE:               return new char[size]();
+        case GL_SHORT:              return new short[size]();
+        case GL_UNSIGNED_INT:       return new unsigned int[size]();
+        case GL_UNSIGNED_BYTE:      return new unsigned char[size]();
+        case GL_UNSIGNED_SHORT:     return new unsigned short[size]();
+        case GL_BOOL:               return new bool[size]();
         }
+        ErrorLog(std::cerr, "Error", 0) << "Array 생성 실패, 존재하지 않는 타입.\n" << std::endl;
         return nullptr;
     }
     static int GL_TypeToSizeOf(unsigned int type)
     {
         switch (type)
         {
-        case GL_FLOAT: return sizeof(float) * 1;
-        case GL_FLOAT_VEC2: return sizeof(float) * 2;
-        case GL_FLOAT_VEC3: return sizeof(float) * 3;
-        case GL_FLOAT_VEC4: return sizeof(float) * 4;
-        case GL_FLOAT_MAT2: return sizeof(float) * 4;
-        case GL_FLOAT_MAT3: return sizeof(float) * 9;
-        case GL_FLOAT_MAT4: return sizeof(float) * 16;
-        case GL_FLOAT_MAT2x3: return sizeof(float) * 6;
-        case GL_FLOAT_MAT2x4: return sizeof(float) * 8;
-        case GL_FLOAT_MAT3x2: return sizeof(float) * 6;
-        case GL_FLOAT_MAT3x4: return sizeof(float) * 12;
-        case GL_FLOAT_MAT4x2: return sizeof(float) * 8;
-        case GL_FLOAT_MAT4x3: return sizeof(float) * 12;
+        case 0:                     return 0;
+        case GL_FLOAT:              return sizeof(float) * 1;
+        case GL_FLOAT_VEC2:         return sizeof(float) * 2;
+        case GL_FLOAT_VEC3:         return sizeof(float) * 3;
+        case GL_FLOAT_VEC4:         return sizeof(float) * 4;
+        case GL_FLOAT_MAT2:         return sizeof(float) * 4;
+        case GL_FLOAT_MAT3:         return sizeof(float) * 9;
+        case GL_FLOAT_MAT4:         return sizeof(float) * 16;
+        case GL_FLOAT_MAT2x3:       return sizeof(float) * 6;
+        case GL_FLOAT_MAT2x4:       return sizeof(float) * 8;
+        case GL_FLOAT_MAT3x2:       return sizeof(float) * 6;
+        case GL_FLOAT_MAT3x4:       return sizeof(float) * 12;
+        case GL_FLOAT_MAT4x2:       return sizeof(float) * 8;
+        case GL_FLOAT_MAT4x3:       return sizeof(float) * 12;
 
-        case GL_DOUBLE: return sizeof(double) * 1;
-        case GL_DOUBLE_VEC2: return sizeof(double) * 2;
-        case GL_DOUBLE_VEC3: return sizeof(double) * 3;
-        case GL_DOUBLE_VEC4: return sizeof(double) * 4;
-        case GL_DOUBLE_MAT2: return sizeof(double) * 4;
-        case GL_DOUBLE_MAT3: return sizeof(double) * 9;
-        case GL_DOUBLE_MAT4: return sizeof(double) * 16;
-        case GL_DOUBLE_MAT2x3: return sizeof(double) * 6;
-        case GL_DOUBLE_MAT2x4: return sizeof(double) * 8;
-        case GL_DOUBLE_MAT3x2: return sizeof(double) * 6;
-        case GL_DOUBLE_MAT3x4: return sizeof(double) * 12;
-        case GL_DOUBLE_MAT4x2: return sizeof(double) * 8;
-        case GL_DOUBLE_MAT4x3: return sizeof(double) * 12;
+        case GL_DOUBLE:             return sizeof(double) * 1;
+        case GL_DOUBLE_VEC2:        return sizeof(double) * 2;
+        case GL_DOUBLE_VEC3:        return sizeof(double) * 3;
+        case GL_DOUBLE_VEC4:        return sizeof(double) * 4;
+        case GL_DOUBLE_MAT2:        return sizeof(double) * 4;
+        case GL_DOUBLE_MAT3:        return sizeof(double) * 9;
+        case GL_DOUBLE_MAT4:        return sizeof(double) * 16;
+        case GL_DOUBLE_MAT2x3:      return sizeof(double) * 6;
+        case GL_DOUBLE_MAT2x4:      return sizeof(double) * 8;
+        case GL_DOUBLE_MAT3x2:      return sizeof(double) * 6;
+        case GL_DOUBLE_MAT3x4:      return sizeof(double) * 12;
+        case GL_DOUBLE_MAT4x2:      return sizeof(double) * 8;
+        case GL_DOUBLE_MAT4x3:      return sizeof(double) * 12;
 
-        case GL_INT: return sizeof(int) * 1;
-        case GL_INT_VEC2: return sizeof(int) * 1;
-        case GL_INT_VEC3: return sizeof(int) * 1;
-        case GL_INT_VEC4: return sizeof(int) * 1;
+        case GL_INT:                return sizeof(int) * 1;
+        case GL_INT_VEC2:           return sizeof(int) * 1;
+        case GL_INT_VEC3:           return sizeof(int) * 1;
+        case GL_INT_VEC4:           return sizeof(int) * 1;
 
-        case GL_UNSIGNED_INT: return sizeof(unsigned int) * 1;
-        case GL_UNSIGNED_INT_VEC2: return sizeof(unsigned int) * 1;
-        case GL_UNSIGNED_INT_VEC3: return sizeof(unsigned int) * 1;
-        case GL_UNSIGNED_INT_VEC4: return sizeof(unsigned int) * 1;
+        case GL_UNSIGNED_INT:       return sizeof(unsigned int) * 1;
+        case GL_UNSIGNED_INT_VEC2:  return sizeof(unsigned int) * 1;
+        case GL_UNSIGNED_INT_VEC3:  return sizeof(unsigned int) * 1;
+        case GL_UNSIGNED_INT_VEC4:  return sizeof(unsigned int) * 1;
 
         }
+        WarringLog(std::cerr, "Warring", 0) << "Type의 크기를 찾지 못함.\n";
+        return 0;
+    }
+
+    static void GL_TypeToSplitType(unsigned int* _type, int* _col, int* _row)
+    {
+        unsigned int elementType = *_type;
+        int col = *_col;
+        int row = *_row;
+
+        switch (*_type)
+        {
+        case GL_FLOAT:              elementType = GL_FLOAT; col = 1; row = 1; break;
+        case GL_FLOAT_VEC2:         elementType = GL_FLOAT; col = 2; row = 1; break;
+        case GL_FLOAT_VEC3:         elementType = GL_FLOAT; col = 3; row = 1; break;
+        case GL_FLOAT_VEC4:         elementType = GL_FLOAT; col = 4; row = 1; break;
+        case GL_FLOAT_MAT2:         elementType = GL_FLOAT; col = 2; row = 2; break;
+        case GL_FLOAT_MAT3:         elementType = GL_FLOAT; col = 3; row = 3; break;
+        case GL_FLOAT_MAT4:         elementType = GL_FLOAT; col = 4; row = 4; break;
+        case GL_FLOAT_MAT2x3:       elementType = GL_FLOAT; col = 2; row = 3; break;
+        case GL_FLOAT_MAT2x4:       elementType = GL_FLOAT; col = 2; row = 4; break;
+        case GL_FLOAT_MAT3x2:       elementType = GL_FLOAT; col = 3; row = 2; break;
+        case GL_FLOAT_MAT3x4:       elementType = GL_FLOAT; col = 3; row = 4; break;
+        case GL_FLOAT_MAT4x2:       elementType = GL_FLOAT; col = 4; row = 2; break;
+        case GL_FLOAT_MAT4x3:       elementType = GL_FLOAT; col = 4; row = 3; break;
+
+        case GL_DOUBLE:             elementType = GL_DOUBLE; col = 1; row = 1; break;
+        case GL_DOUBLE_VEC2:        elementType = GL_DOUBLE; col = 2; row = 1; break;
+        case GL_DOUBLE_VEC3:        elementType = GL_DOUBLE; col = 3; row = 1; break;
+        case GL_DOUBLE_VEC4:        elementType = GL_DOUBLE; col = 4; row = 1; break;
+        case GL_DOUBLE_MAT2:        elementType = GL_DOUBLE; col = 2; row = 2; break;
+        case GL_DOUBLE_MAT3:        elementType = GL_DOUBLE; col = 3; row = 3; break;
+        case GL_DOUBLE_MAT4:        elementType = GL_DOUBLE; col = 4; row = 4; break;
+        case GL_DOUBLE_MAT2x3:      elementType = GL_DOUBLE; col = 2; row = 3; break;
+        case GL_DOUBLE_MAT2x4:      elementType = GL_DOUBLE; col = 2; row = 4; break;
+        case GL_DOUBLE_MAT3x2:      elementType = GL_DOUBLE; col = 3; row = 2; break;
+        case GL_DOUBLE_MAT3x4:      elementType = GL_DOUBLE; col = 3; row = 4; break;
+        case GL_DOUBLE_MAT4x2:      elementType = GL_DOUBLE; col = 4; row = 2; break;
+        case GL_DOUBLE_MAT4x3:      elementType = GL_DOUBLE; col = 4; row = 3; break;
+
+        case GL_INT:                elementType = GL_INT; col = 1; row = 1; break;
+        case GL_INT_VEC2:           elementType = GL_INT; col = 2; row = 1; break;
+        case GL_INT_VEC3:           elementType = GL_INT; col = 3; row = 1; break;
+        case GL_INT_VEC4:           elementType = GL_INT; col = 4; row = 1; break;
+
+        case GL_UNSIGNED_INT:       elementType = GL_UNSIGNED_INT; col = 1; row = 1; break;
+        case GL_UNSIGNED_INT_VEC2:  elementType = GL_UNSIGNED_INT; col = 2; row = 1; break;
+        case GL_UNSIGNED_INT_VEC3:  elementType = GL_UNSIGNED_INT; col = 3; row = 1; break;
+        case GL_UNSIGNED_INT_VEC4:  elementType = GL_UNSIGNED_INT; col = 4; row = 1; break;
+        }
+
+        *_type = elementType;
+        *_col = col;
+        *_row = row;
+    }
+
+    static void GL_TypeToSplitType(unsigned int* _type, int* _col, int* _row)
+    {
+        unsigned int elementType = *_type;
+        int col = *_col;
+        int row = *_row;
+
+        switch (*_type)
+        {
+        case GL_FLOAT:              elementType = GL_FLOAT; col = 1; row = 1; break;
+        case GL_FLOAT_VEC2:         elementType = GL_FLOAT; col = 2; row = 1; break;
+        case GL_FLOAT_VEC3:         elementType = GL_FLOAT; col = 3; row = 1; break;
+        case GL_FLOAT_VEC4:         elementType = GL_FLOAT; col = 4; row = 1; break;
+        case GL_FLOAT_MAT2:         elementType = GL_FLOAT; col = 2; row = 2; break;
+        case GL_FLOAT_MAT3:         elementType = GL_FLOAT; col = 3; row = 3; break;
+        case GL_FLOAT_MAT4:         elementType = GL_FLOAT; col = 4; row = 4; break;
+        case GL_FLOAT_MAT2x3:       elementType = GL_FLOAT; col = 2; row = 3; break;
+        case GL_FLOAT_MAT2x4:       elementType = GL_FLOAT; col = 2; row = 4; break;
+        case GL_FLOAT_MAT3x2:       elementType = GL_FLOAT; col = 3; row = 2; break;
+        case GL_FLOAT_MAT3x4:       elementType = GL_FLOAT; col = 3; row = 4; break;
+        case GL_FLOAT_MAT4x2:       elementType = GL_FLOAT; col = 4; row = 2; break;
+        case GL_FLOAT_MAT4x3:       elementType = GL_FLOAT; col = 4; row = 3; break;
+
+        case GL_DOUBLE:             elementType = GL_DOUBLE; col = 1; row = 1; break;
+        case GL_DOUBLE_VEC2:        elementType = GL_DOUBLE; col = 2; row = 1; break;
+        case GL_DOUBLE_VEC3:        elementType = GL_DOUBLE; col = 3; row = 1; break;
+        case GL_DOUBLE_VEC4:        elementType = GL_DOUBLE; col = 4; row = 1; break;
+        case GL_DOUBLE_MAT2:        elementType = GL_DOUBLE; col = 2; row = 2; break;
+        case GL_DOUBLE_MAT3:        elementType = GL_DOUBLE; col = 3; row = 3; break;
+        case GL_DOUBLE_MAT4:        elementType = GL_DOUBLE; col = 4; row = 4; break;
+        case GL_DOUBLE_MAT2x3:      elementType = GL_DOUBLE; col = 2; row = 3; break;
+        case GL_DOUBLE_MAT2x4:      elementType = GL_DOUBLE; col = 2; row = 4; break;
+        case GL_DOUBLE_MAT3x2:      elementType = GL_DOUBLE; col = 3; row = 2; break;
+        case GL_DOUBLE_MAT3x4:      elementType = GL_DOUBLE; col = 3; row = 4; break;
+        case GL_DOUBLE_MAT4x2:      elementType = GL_DOUBLE; col = 4; row = 2; break;
+        case GL_DOUBLE_MAT4x3:      elementType = GL_DOUBLE; col = 4; row = 3; break;
+
+        case GL_INT:                elementType = GL_INT; col = 1; row = 1; break;
+        case GL_INT_VEC2:           elementType = GL_INT; col = 2; row = 1; break;
+        case GL_INT_VEC3:           elementType = GL_INT; col = 3; row = 1; break;
+        case GL_INT_VEC4:           elementType = GL_INT; col = 4; row = 1; break;
+
+        case GL_UNSIGNED_INT:       elementType = GL_UNSIGNED_INT; col = 1; row = 1; break;
+        case GL_UNSIGNED_INT_VEC2:  elementType = GL_UNSIGNED_INT; col = 2; row = 1; break;
+        case GL_UNSIGNED_INT_VEC3:  elementType = GL_UNSIGNED_INT; col = 3; row = 1; break;
+        case GL_UNSIGNED_INT_VEC4:  elementType = GL_UNSIGNED_INT; col = 4; row = 1; break;
+        }
+
+        *_type = elementType;
+        *_col = col;
+        *_row = row;
     }
 };
 unsigned int Shader::currentShaderID = UINT_MAX;
 unsigned int Shader::currentVAOID = 0;
 std::vector<const char*> Shader::indexAttributeNameList = std::vector<const char*>({ "vertexIndex", "vertexColorIndex", "normalIndex", "uv0Index" });
 Shader errorShader;
+
+
 
 class VBOInfo
 {
@@ -418,125 +945,317 @@ public:
     unsigned int offset = 0;
 };
 
-class AttributeSegment
+
+
+int UniformSegment::BindShader(Shader* shader)
 {
-public:
-    /*
-    * Count == 데이터 갯수
-    * Size = Count * sizeof(type) 실제 데이터 크기
-    */
-    char* name = nullptr;
-    int segmentCount = -1;
-
-    std::weak_ptr<void> rawBuffer;
-    int offsetCount = -1;
-    int blockCount = -1;
-    unsigned int type = GL_FLOAT;
-    unsigned int typeSize = -1;
-
-    int location = -1;
-    int col = 0;
-    int row = 0;
-    unsigned int normalized = GL_FALSE;
-
-    AttributeSegment(const char* name, int segmentCount)
+    int location = glGetUniformLocation(shader->shaderID, name);
+    if (location != -1)
     {
-        int nameLength = strlen(name);
-        strncpy((this->name = new char[nameLength + 1]()), name, nameLength);
-        this->segmentCount = segmentCount;
-
-        this->rawBuffer;
-        this->offsetCount = -1;
-        this->blockCount = -1;
-        this->type = GL_FLOAT;
-        this->typeSize = -1;
+        this->shaderID = shader->shaderID;
+        this->location = location;
     }
-    AttributeSegment(const AttributeSegment& origin)
+    return location;
+}
+UniformSegment::UniformSegment(const char* name, unsigned int type)
+{
+    int nameLength = strlen(name);
+    strncpy((this->name = new char[nameLength + 1]()), name, nameLength);
+    this->type = type;
+}
+
+UniformSegment::UniformSegment(const UniformSegment& origin)
+{
+    int nameLength = strlen(origin.name);
+    strncpy((this->name = new char[nameLength + 1]()), origin.name, nameLength);
+    this->type = origin.type;
+    this->location = origin.location;
+
+    this->data_vector = origin.data_vector;
+    this->data_vector_int = origin.data_vector_int;
+    this->data_matrix2 = origin.data_matrix2;
+    this->data_matrix3 = origin.data_matrix3;
+    this->data_matrix4 = origin.data_matrix4;
+}
+UniformSegment& UniformSegment::operator =(const UniformSegment& origin)
+{
+    int nameLength = strlen(origin.name);
+    strncpy((this->name = new char[nameLength + 1]()), origin.name, nameLength);
+    this->type = origin.type;
+    this->location = origin.location;
+
+    this->data_vector = origin.data_vector;
+    this->data_vector_int = origin.data_vector_int;
+    this->data_matrix2 = origin.data_matrix2;
+    this->data_matrix3 = origin.data_matrix3;
+    this->data_matrix4 = origin.data_matrix4;
+
+    return *this;
+}
+
+UniformSegment& UniformSegment::operator =(UniformSegment&& origin)
+{
+    this->name = origin.name;
+    this->type = origin.type;
+    this->location = origin.location;
+
+    this->data_vector = origin.data_vector;
+    this->data_vector_int = origin.data_vector_int;
+    this->data_matrix2 = origin.data_matrix2;
+    this->data_matrix3 = origin.data_matrix3;
+    this->data_matrix4 = origin.data_matrix4;
+
+    origin.name = nullptr;
+    return *this;
+}
+UniformSegment::UniformSegment(UniformSegment&& origin)
+{
+    this->name = origin.name;
+    this->type = origin.type;
+    this->location = origin.location;
+
+    this->data_vector = origin.data_vector;
+    this->data_vector_int = origin.data_vector_int;
+    this->data_matrix2 = origin.data_matrix2;
+    this->data_matrix3 = origin.data_matrix3;
+    this->data_matrix4 = origin.data_matrix4;
+
+    origin.name = nullptr;
+}
+void UniformSegment::UpdateUniformSegment(UniformSegment& origin)
+{
+    this->data_vector = origin.data_vector;
+    this->data_vector_int = origin.data_vector_int;
+    this->data_matrix2 = origin.data_matrix2;
+    this->data_matrix3 = origin.data_matrix3;
+    this->data_matrix4 = origin.data_matrix4;
+}
+
+void UniformSegment::Bind()
+{
+    if(location == -1)
+        location = glGetUniformLocation(Shader::currentShaderID, name);
+
+    if (location != -1)
     {
-        int nameLength = strlen(origin.name);
-        strncpy((this->name = new char[nameLength + 1]()), origin.name, nameLength);
-        this->segmentCount = origin.segmentCount;
+        switch (type)
+        {
+        case GL_FLOAT:              glUniform1f(location, data_vector.x); break;
+        case GL_FLOAT_VEC2:         glUniform2f(location, data_vector.x, data_vector.y); break;
+        case GL_FLOAT_VEC3:         glUniform3f(location, data_vector.x, data_vector.y, data_vector.z); break;
+        case GL_FLOAT_VEC4:         glUniform4f(location, data_vector.x, data_vector.y, data_vector.z, data_vector.w); break;
+        case GL_FLOAT_MAT2:         glUniformMatrix2fv(location, 1, normalized, glm::value_ptr(data_matrix2)); break;
+        case GL_FLOAT_MAT3:         glUniformMatrix3fv(location, 1, normalized, glm::value_ptr(data_matrix3)); break;
+        case GL_FLOAT_MAT4:         glUniformMatrix4fv(location, 1, normalized, glm::value_ptr(data_matrix4)); break;
 
-        this->rawBuffer = origin.rawBuffer;
-        this->offsetCount = origin.offsetCount;
-        this->blockCount = origin.blockCount;
-        this->type = origin.type;
-        this->typeSize = origin.typeSize;
-        this->location = origin.location;
-        this->col = origin.col;
-        this->row = origin.row;
-        this->normalized = origin.normalized;
-    }
-    AttributeSegment(AttributeSegment&& other)
-    {
-        this->name = other.name;
-        this->segmentCount = other.segmentCount;
+        case GL_DOUBLE:             glUniform1d(location, data_vector.x); break;
+        case GL_DOUBLE_VEC2:        glUniform2d(location, data_vector.x, data_vector.y); break;
+        case GL_DOUBLE_VEC3:        glUniform3d(location, data_vector.x, data_vector.y, data_vector.z); break;
+        case GL_DOUBLE_VEC4:        glUniform4d(location, data_vector.x, data_vector.y, data_vector.z, data_vector.w); break;
+        case GL_DOUBLE_MAT2:        glUniformMatrix2dv(location, 1, normalized, (double*)glm::value_ptr(glm::highp_mat2(data_matrix2))); break;
+        case GL_DOUBLE_MAT3:        glUniformMatrix3dv(location, 1, normalized, (double*)glm::value_ptr(glm::highp_mat3(data_matrix3))); break;
+        case GL_DOUBLE_MAT4:        glUniformMatrix4dv(location, 1, normalized, (double*)glm::value_ptr(glm::highp_mat4(data_matrix4))); break;
+            
+        case GL_INT:                glUniform1i(location, data_vector_int.x); break;
+        case GL_INT_VEC2:           glUniform2i(location, data_vector_int.x, data_vector_int.y); break;
+        case GL_INT_VEC3:           glUniform3i(location, data_vector_int.x, data_vector_int.y, data_vector_int.z); break;
+        case GL_INT_VEC4:           glUniform4i(location, data_vector_int.x, data_vector_int.y, data_vector_int.z, data_vector_int.w); break;
 
-        this->rawBuffer = other.rawBuffer;
-        this->offsetCount = other.offsetCount;
-        this->blockCount = other.blockCount;
-        this->type = other.type;
-        this->typeSize = other.typeSize;
-        this->location = other.location;
-        this->col = other.col;
-        this->row = other.row;
-        this->normalized = other.normalized;
-        other.name = nullptr;
-    }
-    AttributeSegment& operator =(const AttributeSegment& other)
-    {
-        int nameLength = strlen(other.name);
-        strncpy((this->name = new char[nameLength + 1]()), other.name, nameLength);
-        this->segmentCount = other.segmentCount;
+        case GL_UNSIGNED_INT:       glUniform1i(location, data_vector_int.x); break;
+        case GL_UNSIGNED_INT_VEC2:  glUniform2i(location, (unsigned int)data_vector_int.x, (unsigned int)data_vector_int.y); break;
+        case GL_UNSIGNED_INT_VEC3:  glUniform3i(location, (unsigned int)data_vector_int.x, (unsigned int)data_vector_int.y, (unsigned int)data_vector_int.z); break;
+        case GL_UNSIGNED_INT_VEC4:  glUniform4i(location, (unsigned int)data_vector_int.x, (unsigned int)data_vector_int.y, (unsigned int)data_vector_int.z, (unsigned int)data_vector_int.w); break;
+        
+        case GL_TEXTURE_1D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_1D_ARRAY:   glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        
+        case GL_TEXTURE_2D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_2D_ARRAY:   glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
 
-        this->rawBuffer = other.rawBuffer;
-        this->offsetCount = other.offsetCount;
-        this->blockCount = other.blockCount;
-        this->type = other.type;
-        this->typeSize = other.typeSize;
-        this->location = other.location;
-        this->col = other.col;
-        this->row = other.row;
-        this->normalized = other.normalized;
-        return *this;
-    }
-    AttributeSegment& operator =(AttributeSegment&& other)
-    {
-        this->name = other.name;
-        this->segmentCount = other.segmentCount;
+        case GL_TEXTURE_3D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
 
-        this->rawBuffer = other.rawBuffer;
-        this->offsetCount = other.offsetCount;
-        this->blockCount = other.blockCount;
-        this->type = other.type;
-        this->typeSize = other.typeSize;
-        this->location = other.location;
-        this->col = other.col;
-        this->row = other.row;
-        this->normalized = other.normalized;
-        other.name = nullptr;
-        return *this;
-    }
+        case GL_SAMPLER_1D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_SAMPLER_2D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_SAMPLER_3D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_SAMPLER_CUBE:       glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_SAMPLER_1D_SHADOW:  glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_SAMPLER_2D_SHADOW:  glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
 
-    AttributeSegment& ConvertRealSegment(std::shared_ptr<void> rawBuffer, unsigned int type, int offsetCount, int blockCount)
-    {
-        this->rawBuffer = rawBuffer;
-        this->type = (int)type;
-        this->typeSize = Shader::GL_TypeToSizeOf(type);
-        this->offsetCount = offsetCount;
-        this->blockCount = blockCount;
-        return *this;
+        //case GL_FLOAT_MAT2x3:       elementType = GL_FLOAT; col = 2; row = 3; break;
+        //case GL_FLOAT_MAT2x4:       elementType = GL_FLOAT; col = 2; row = 4; break;
+        //case GL_FLOAT_MAT3x2:       elementType = GL_FLOAT; col = 3; row = 2; break;
+        //case GL_FLOAT_MAT3x4:       elementType = GL_FLOAT; col = 3; row = 4; break;
+        //case GL_FLOAT_MAT4x2:       elementType = GL_FLOAT; col = 4; row = 2; break;
+        //case GL_FLOAT_MAT4x3:       elementType = GL_FLOAT; col = 4; row = 3; break;
+
+        //case GL_DOUBLE_MAT2x3:      elementType = GL_DOUBLE; col = 2; row = 3; break;
+        //case GL_DOUBLE_MAT2x4:      elementType = GL_DOUBLE; col = 2; row = 4; break;
+        //case GL_DOUBLE_MAT3x2:      elementType = GL_DOUBLE; col = 3; row = 2; break;
+        //case GL_DOUBLE_MAT3x4:      elementType = GL_DOUBLE; col = 3; row = 4; break;
+        //case GL_DOUBLE_MAT4x2:      elementType = GL_DOUBLE; col = 4; row = 2; break;
+        //case GL_DOUBLE_MAT4x3:      elementType = GL_DOUBLE; col = 4; row = 3; break;
+        }
+
+
+        //glUniformMatrix4fv(location, 1, normalized, glm::value_ptr(modelMatrix));
+        //glUniform4f(location, modelcolor.x, modelcolor.y, modelcolor.z, modelcolor.w);
     }
-    void Destroy()
+}
+UniformSegment::~UniformSegment()
+{
+    if (this->name != nullptr)
     {
         delete[](this->name);
-        segmentCount = -1;
+        this->name = nullptr;
     }
-    ~AttributeSegment()
+}
+
+
+
+void UniformStorage::BindShader(Shader* shader)
+{
+    for (int i = 0; i < uniformList.size(); i++)
     {
-        this->Destroy();
+        int location = glGetUniformLocation(shader->shaderID, uniformList[i].name);
+        if (uniformList[i].BindShader(shader) == -1)
+        {
+            uniformList.erase(uniformList.begin() + i);
+            i--;
+            WarringLog(std::cerr, "Warring", 1) << "사용하지 않는 Uniform 목록에서 제거됨 - name : " << uniformList[i].name << "\n";
+            continue;
+        }
     }
-};
+}
+
+
+
+AttributeSegment::AttributeSegment(const char* name, int segmentCount)
+{
+    int nameLength = strlen(name);
+    strncpy((this->name = new char[nameLength + 1]()), name, nameLength);
+    this->segmentCount = segmentCount;
+
+    this->rawBuffer;
+    this->offsetCount = -1;
+    this->blockCount = -1;
+    this->type = GL_FLOAT;
+    this->rawType = this->type;
+    this->typeSize = -1;
+}
+AttributeSegment::AttributeSegment(const char* name, int location, int col, int row, unsigned int rawType, unsigned int type, unsigned int normalized)
+{
+    int nameLength = strlen(name);
+    strncpy((this->name = new char[nameLength + 1]()), name, nameLength);
+
+    this->rawBuffer;
+    this->offsetCount = -1;
+    this->blockCount = -1;
+    this->typeSize = -1;
+
+    this->location = location;
+    this->col = col;
+    this->row = row;
+    this->rawType = rawType;
+    this->type = type;
+    this->normalized = normalized;
+}
+
+AttributeSegment::AttributeSegment(const AttributeSegment& origin)
+{
+    int nameLength = strlen(origin.name);
+    strncpy((this->name = new char[nameLength + 1]()), origin.name, nameLength);
+    this->segmentCount = origin.segmentCount;
+
+    this->rawBuffer = origin.rawBuffer;
+    this->offsetCount = origin.offsetCount;
+    this->blockCount = origin.blockCount;
+    this->type = origin.type;
+    this->rawType = origin.rawType;
+    this->typeSize = origin.typeSize;
+    this->location = origin.location;
+    this->col = origin.col;
+    this->row = origin.row;
+    this->normalized = origin.normalized;
+}
+AttributeSegment::AttributeSegment(AttributeSegment&& other)
+{
+    this->name = other.name;
+    this->segmentCount = other.segmentCount;
+
+    this->rawBuffer = other.rawBuffer;
+    this->offsetCount = other.offsetCount;
+    this->blockCount = other.blockCount;
+    this->type = other.type;
+    this->rawType = other.rawType;
+    this->typeSize = other.typeSize;
+    this->location = other.location;
+    this->col = other.col;
+    this->row = other.row;
+    this->normalized = other.normalized;
+    other.name = nullptr;
+}
+AttributeSegment& AttributeSegment::operator =(const AttributeSegment& other)
+{
+    int nameLength = strlen(other.name);
+    strncpy((this->name = new char[nameLength + 1]()), other.name, nameLength);
+    this->segmentCount = other.segmentCount;
+
+    this->rawBuffer = other.rawBuffer;
+    this->offsetCount = other.offsetCount;
+    this->blockCount = other.blockCount;
+    this->type = other.type;
+    this->rawType = other.rawType;
+    this->typeSize = other.typeSize;
+    this->location = other.location;
+    this->col = other.col;
+    this->row = other.row;
+    this->normalized = other.normalized;
+    return *this;
+}
+AttributeSegment& AttributeSegment::operator =(AttributeSegment&& other)
+{
+    this->name = other.name;
+    this->segmentCount = other.segmentCount;
+
+    this->rawBuffer = other.rawBuffer;
+    this->offsetCount = other.offsetCount;
+    this->blockCount = other.blockCount;
+    this->type = other.type;
+    this->rawType = other.rawType;
+    this->typeSize = other.typeSize;
+    this->location = other.location;
+    this->col = other.col;
+    this->row = other.row;
+    this->normalized = other.normalized;
+    other.name = nullptr;
+    return *this;
+}
+
+AttributeSegment& AttributeSegment::ConvertRealSegment(std::shared_ptr<void> rawBuffer, unsigned int type, int offsetCount, int blockCount)
+{
+    this->rawBuffer = rawBuffer;
+    this->rawType = this->type;
+    this->type = (int)type;
+    this->typeSize = Shader::GL_TypeToSizeOf(type);
+    this->offsetCount = offsetCount;
+    this->blockCount = blockCount;
+    return *this;
+}
+void AttributeSegment::Destroy()
+{
+    if (this->name != nullptr)
+    {
+        delete[](this->name);
+        this->name = nullptr;
+    }
+    segmentCount = -1;
+}
+AttributeSegment::~AttributeSegment()
+{
+    this->Destroy();
+}
+
+
 class ModelBufferData
 {
 public:
@@ -760,7 +1479,7 @@ public:
             for (int j = 0; j < resultBuferDatas[i].attributeInfos.size(); j++)
             {
                 int shaderAttributeIndex = -1;
-                for (int k = 0; k < resultBuferDatas[i].attributeInfos.size(); k++)
+                for (int k = 0; k < shader->attributeInfos.size(); k++)
                     if (strcmp(resultBuferDatas[i].attributeInfos[j].name, shader->attributeInfos[k].name) == 0)
                     {
                         shaderAttributeIndex = k;
@@ -1065,7 +1784,7 @@ public:
         BindVAO();
         int vertexCount = renderBufferList[0].size / renderBufferList[0].GetBlockCount();
         if (vertexCount % 3 != 0)
-            std::cout << std::setw(10) << "Warring: " << "ArrayRender의 Count가 3의 배수가 아닙니다." << "\n";
+            WarringLog(std::cerr, "Warring") << "ArrayRender의 Count가 3의 배수가 아닙니다." << "\n";
         glDrawArrays(this->material->drawType, 0, vertexCount); //todo 수정 요망.
     }
     void RenderingIndex()
@@ -1078,7 +1797,7 @@ public:
         }
         else
         {
-            std::cerr << std::setw(10) << "ERROR: " << "Index Buffer가 존재하지 않는 Model을 Index 렌더링\n " << std::endl;
+            ErrorLog(std::cerr, "Error") << "Index Buffer가 존재하지 않는 Model을 Index 렌더링\n";
         }
     }
 
@@ -1127,7 +1846,7 @@ public:
 
             if (shader != nullptr)
             {
-                std::cout << std::setw(10) << "Try: " << "Material -> Shader Connect  shaderID : " << shader << "\n";
+                NormalLog(std::cerr, "Try") << "Material -> Shader Connect  shaderID : " << shader << "\n";
                 bool result = UpdateAttrubute(shader);
                 if (!result)
                 {
@@ -1182,7 +1901,7 @@ public:
 
                 if (map_Attribute_VBO_Infos.find(nowAttriInfo.name) == map_Attribute_VBO_Infos.end())
                 {
-                    std::cerr << std::setw(10) << "ERROR: " << "Material -> Shader Connected Failed : 쉐이더에 필요한 attribute를 찾을 수 없습니다. name : " << nowAttriInfo.name << "\n";
+                    ErrorLog(std::cerr, "Error") << "Material -> Shader Connected Failed : 쉐이더에 필요한 attribute를 찾을 수 없습니다. name : " << nowAttriInfo.name << "\n";
                     return false;
                 }
                 // 무조건 어트리뷰트 있음.
@@ -1275,6 +1994,7 @@ public:
 Material::Material(Shader* shader)
 {
     SetShader(shader);
+    this->uniformStorage = std::shared_ptr<UniformStorage>(new UniformStorage());
 }
 void Material::SetShader(Shader* shader)
 {
@@ -1308,7 +2028,7 @@ ShaderCode LoadShader(const char* path)
     shaderCode.isShaderLoad = false;
     if (shaderCode.code != nullptr)
         shaderCode.isShaderLoad = true;
-    std::cout << std::setw(10) << "Try: " << "Shader Load Success - Path : \"" << path << "\"\n";
+    NormalLog(std::cerr, "Try") << "Shader Load Success - Path : \"" << path << "\"\n";
     return shaderCode;
 }
 ShaderCode&& CompileShader(ShaderCode&& shader, unsigned int ShaderType)
@@ -1325,7 +2045,7 @@ ShaderCode&& CompileShader(ShaderCode&& shader, unsigned int ShaderType)
         char errorLog[8192];
         glGetShaderInfoLog(shader.shaderCodeID, 8192, NULL, errorLog); // 에러가 뭔지 보기
         SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
-        std::cerr << std::setw(10) << "ERROR: " << "Shader 컴파일 실패,  Type : " << ((shader.shaderType == GL_VERTEX_SHADER) ? "Vertex Shader" : "Fragment Shader") << "\n" << errorLog << std::endl;
+        ErrorLog(std::cerr, "Error", 1) << "Shader 컴파일 실패, Type : " << ((shader.shaderType == GL_VERTEX_SHADER) ? "Vertex Shader" : "Fragment Shader") << "\n" << errorLog << std::endl;
         SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
 
         int index = 0;
@@ -1357,7 +2077,7 @@ ShaderCode&& CompileShader(ShaderCode&& shader, unsigned int ShaderType)
         return std::move(shader);
     }
     shader.isShaderCompiled = true;
-    std::cout << std::setw(10) << "Try: " << "Shader Compile Success - ShaderCodeID : " << shader.shaderCodeID << ", Type:" << ((shader.shaderType == GL_VERTEX_SHADER) ? "Vertex Shader" : "Fragment Shader") << "\n";
+    NormalLog(std::cerr, "Try", 1) << "Shader Compile Success - ShaderCodeID : " << shader.shaderCodeID << ", Type:" << ((shader.shaderType == GL_VERTEX_SHADER) ? "Vertex Shader" : "Fragment Shader") << "\n";
     return std::move(shader);
 }
 
@@ -1365,16 +2085,16 @@ Shader CreateShaderProgram(ShaderCode&& vertexShaderCode, ShaderCode&& fragmentS
 {
     if (!(vertexShaderCode.isShaderLoad && vertexShaderCode.isShaderCompiled))
     {
-        std::cerr << std::setw(10) << "ERROR: " << "Program 생성 실패 : 잘못된 VertexShader" << (vertexShaderCode.isShaderLoad ? " - Load 되지 않은 Shader" : "") << (vertexShaderCode.isShaderCompiled ? " - Compile 실패한 Shader" : "") << "\n";
-        std::cout << std::setw(10) << "Try: " << "Shader Compile 실패 -> Error Shader 반환" << "\n";
+        ErrorLog(std::cerr, "Error", 2) << "Program 생성 실패 : 잘못된 VertexShader" << (vertexShaderCode.isShaderLoad ? " - Load 되지 않은 Shader" : "") << (vertexShaderCode.isShaderCompiled ? " - Compile 실패한 Shader" : "") << "\n";
+        ErrorLog(std::cerr, "Error", 2) << "Shader Compile 실패 -> Error Shader 반환" << "\n";
         vertexShaderCode.Delete();
         fragmentShaderCode.Delete();
         return errorShader;
     }
     if (!(vertexShaderCode.isShaderLoad && vertexShaderCode.isShaderCompiled))
     {
-        std::cerr << std::setw(10) << "ERROR: " << "Program 생성 실패 : 잘못된 FragmentShader" << (fragmentShaderCode.isShaderLoad ? " - Load 되지 않은 Shader" : "") << (fragmentShaderCode.isShaderCompiled ? " - Compile 실패한 Shader" : "") << "\n";
-        std::cout << std::setw(10) << "Try: " << "Shader Compile 실패 -> Error Shader 반환" << "\n";
+        ErrorLog(std::cerr, "Error", 2) << "Program 생성 실패 : 잘못된 FragmentShader" << (fragmentShaderCode.isShaderLoad ? " - Load 되지 않은 Shader" : "") << (fragmentShaderCode.isShaderCompiled ? " - Compile 실패한 Shader" : "") << "\n";
+        ErrorLog(std::cerr, "Error", 2) << "Shader Compile 실패 -> Error Shader 반환" << "\n";
         vertexShaderCode.Delete();
         fragmentShaderCode.Delete();
         return errorShader;
@@ -1393,16 +2113,16 @@ Shader CreateShaderProgram(ShaderCode&& vertexShaderCode, ShaderCode&& fragmentS
         char errorLog[8192];
         glGetProgramInfoLog(newShader.shaderID, 8192, NULL, errorLog);
         SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
-        std::cerr << std::setw(10) << "ERROR: " << "Program 연결 실패\n " << errorLog << std::endl;
+        ErrorLog(std::cerr, "Error", 2) << "Program 연결 실패\n " << errorLog << std::endl;
         SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
-        std::cout << std::setw(10) << "Try: " << "Shader Compile 실패 -> Error Shader 반환" << "\n";
+        ErrorLog(std::cerr, "Error", 2) << "Shader Compile 실패 -> Error Shader 반환" << "\n";
         vertexShaderCode.Delete();
         fragmentShaderCode.Delete();
         newShader.Delete();
         return errorShader;
     }
 
-    std::cout << std::setw(10) << "Try: " << "Shader Program Create Completed - ShaderProgramCode : " << newShader.shaderID << ",  Path : \"" << vertexShaderCode.path << "\" / \"" << fragmentShaderCode.path << "\"\n";
+    NormalLog(std::cerr, "Try", 2) << "Shader Program Create Completed - ShaderProgramCode : " << newShader.shaderID << ",  Path : \"" << vertexShaderCode.path << "\" / \"" << fragmentShaderCode.path << "\"\n";
     vertexShaderCode.Delete();
     fragmentShaderCode.Delete();
 
@@ -1413,6 +2133,47 @@ Shader CreateShaderProgram(ShaderCode&& vertexShaderCode, ShaderCode&& fragmentS
     newShader.Bind();
     return newShader;
 }
+
+
+unsigned int LoadTextureImage(const char* imageDir)
+{
+    // 1. Load Image
+    int imageWidth, imageHeight;
+    unsigned char* image = SOIL_load_image(imageDir,
+        &imageWidth, &imageHeight, NULL, SOIL_LOAD_RGBA);
+
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    // 3. Setup Options
+    // UV 벗어날 경우 텍스쳐 반복
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    // 텍스쳐 축소/확대 필터 설정
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    // 4. Generate Texture2D
+    if (image)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, imageWidth, imageHeight, 0,
+            GL_RGBA, GL_UNSIGNED_BYTE, image);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        ErrorLog(std::cerr, "Error", 0) << "Texture Load 실패 - " << imageDir << "\n";
+    }
+
+    SOIL_free_image_data(image); // Release image
+
+    return textureID;
+}
+
+
+
 
 #pragma endregion
 
@@ -1455,6 +2216,10 @@ class World
 {
 public:
     std::vector<std::shared_ptr<GameObject>> gameObjectList;
+    std::shared_ptr<UniformStorage> uniformStorage;
+
+    World();
+
     std::weak_ptr<GameObject> CreateGameObject();
     bool AddGameObject(std::shared_ptr<GameObject> gameObject);
     void WorldUpdate();
@@ -1523,6 +2288,10 @@ public:
     virtual void BeforeRender() {  }
 };
 
+World::World()
+{
+    uniformStorage = std::shared_ptr<UniformStorage>(new UniformStorage());
+}
 
 std::weak_ptr<GameObject> World::CreateGameObject()
 {
@@ -1857,7 +2626,7 @@ bool GameObject::SetParent(std::weak_ptr<GameObject> parent)
     }
     if (parentIsMyChild)
     {
-        std::cout << std::setw(10) << "Warring: " << std::setw(22) << "  Failed SetParent" << " - 부모가 자신의 자식들에 속함.\n";
+        WarringLog(std::cerr, "Warring") << "Failed SetParent" << " - 부모가 자신의 자식들에 속함.\n";
         return false;
     }
     if (!this->parent.expired() && this->parent.lock() != nullptr)
@@ -1952,9 +2721,18 @@ static bool show_demo_window = true;
 static bool show_another_window = false;
 static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+World world;
+float mouseX = 0;
+float angle = 0;
+bool pushZ = false;
+
 int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정 { //--- 윈도우 생성하기
 {
+    SetWindowPos(GetConsoleWindow(), 0, 0, 0, 1500, 800, SWP_SHOWWINDOW);
+    SetConsoleTitle(L"콘솔");
     std::cout.setf(std::ios::right);
+
+
     glutInit(&argc, argv); // glut 초기화
 #ifdef __FREEGLUT_EXT_H__
     glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
@@ -1967,11 +2745,11 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) // glew 초기화
     {
-        std::cerr << "Unable to initialize GLEW" << std::endl;
+        ErrorLog(std::cerr, "Error") << "Unable to initialize GLEW\n";
         exit(EXIT_FAILURE);
     }
     else
-        std::cout << "GLEW Init Completed\n";
+        NormalLog(std::cerr, "Log") << "GLEW Init Completed\n";
     splitLine();
 
 
@@ -1997,10 +2775,25 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     //testShader.SetAttribute("vertexColor", 4, 1, GL_FLOAT_VEC4, GL_FLOAT, GL_FALSE);
     splitLine();
 
-
+    /*
+    uniform mat4 matM;
+    uniform mat4 matrix_ModelToWorld; // model -> world
+    uniform mat4 matrix_WorldToModel; // world -> model
+    uniform mat4 matrix_ViewProjection; // world -> clip
+    uniform mat4 matrix_View; // world -> view
+    uniform mat4 matrix_Projection; // view -> clip
+    */
     testMaterial = new Material(&testShader);
     testMaterial->drawType = GL_TRIANGLES;
+    testMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Hair_Diffuse.png")));
 
+    auto testBodyMaterial = new Material(&testShader);
+    testBodyMaterial->drawType = GL_TRIANGLES;
+    testBodyMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Body_Diffuse.png")));
+    
+    auto testFaceMaterial = new Material(&testShader);
+    testFaceMaterial->drawType = GL_TRIANGLES;
+    testFaceMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Face_Diffuse.png")));
 
     /* 방법 1.
     float testPosition[16] = { 0, 0, 0, 1,
@@ -2034,7 +2827,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
         aiProcess_CalcTangentSpace |
         aiProcess_SortByPType);
 
-    std::cout << "Load Mesh : " << pScene->mNumMeshes << "\n";
+    NormalLog(std::cerr, "Try") << "Mesh Load - Klee (mesh count)" << pScene->mNumMeshes << "\n";
     /* fast 퀄리티
     aiProcess_CalcTangentSpace              |  \
         aiProcess_GenNormals                    |  \
@@ -2062,12 +2855,12 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     */
 
 
-    testModel = new ModelInfo();
-    testModel->Init();
-    testModel->SetIndexBuffer(testIndexs, sizeof(testIndexs));
-    testModel->SetArrayCount(3);
-    testModel->SetBufferData("positionOS", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 0); // todo : 이부분 다시 체크 3* sizeof(float)로
-    testModel->SetBufferData("vertexColor", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 4 * sizeof(float));
+    //testModel = new ModelInfo();
+    //testModel->Init();
+    //testModel->SetIndexBuffer(testIndexs, sizeof(testIndexs));
+    //testModel->SetArrayCount(3);
+    //testModel->SetBufferData("positionOS", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 0); // todo : 이부분 다시 체크 3* sizeof(float)로
+    //testModel->SetBufferData("vertexColor", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 4 * sizeof(float));
 
 
     float* meshVertexBuffer;
@@ -2087,6 +2880,8 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
             meshVertexList.push_back((pScene->mMeshes[k]->mNormals[i]).y);
             meshVertexList.push_back((pScene->mMeshes[k]->mNormals[i]).z);
             meshVertexList.push_back(1.0f);
+            meshVertexList.push_back((pScene->mMeshes[k]->mTextureCoords[0][i]).x);
+            meshVertexList.push_back((pScene->mMeshes[k]->mTextureCoords[0][i]).y);
         }
         for (unsigned int i = 0; i < pScene->mMeshes[k]->mNumFaces; ++i)
         {
@@ -2104,14 +2899,25 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
         for (int i = 0; i < (int)meshVertexList.size(); i++)
             meshVertexBuffer[meshIndex++] = meshVertexList[i];
         ModelInfo2* m = new ModelInfo2({
-            { std::shared_ptr<void>(meshVertexBuffer), (int)(meshVertexList.size()), GL_FLOAT, {{"positionOS", 4}, {"vertexColor", 4} } },
+            { std::shared_ptr<void>(meshVertexBuffer), (int)(meshVertexList.size()), GL_FLOAT, {{"positionOS", 4}, {"vertexColor", 4}, {"uv0", 2} } },
             { std::shared_ptr<void>(meshIndexBuffer), (int)(meshIndexList.size()), GL_UNSIGNED_INT, {{"vertexIndex", 1}}}
             });
-        klee.push_back(new RenderData(testMaterial, m));
+        if (k == 0)
+            klee.push_back(new RenderData(testMaterial, m));
+        if (k == 1)
+            klee.push_back(new RenderData(testBodyMaterial, m));
+        //if (k == 5)
+        //    klee.push_back(new RenderData(testFaceMaterial, m));
+        if (k == 3 || k == 6 || k == 7)
+            klee.push_back(new RenderData(testFaceMaterial, m));
+        //else if (k == 4 || k == 5)
+        //    klee.push_back(new RenderData(testFaceMaterial, m));
+        //else
+        //    klee.push_back(new RenderData(testMaterial, m));
         meshIndexList.clear();
         meshVertexList.clear();
     }
-
+    /*
     auto vertexSize = 8 * 4 * 2;
     auto indexSize = 12 * 3;
     float* vertexBuffer = new float[vertexSize];
@@ -2196,8 +3002,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
             { std::shared_ptr<void>(vertexBuffer), vertexSize, GL_FLOAT, {{"positionOS", 4}, {"vertexColor", 4} } } ,
             { std::shared_ptr<void>(indexBuffer), indexSize, GL_UNSIGNED_INT, {{"vertexIndex", 1}} }
         });
-
-    World world;
+    */
     std::shared_ptr<GameObject> A = world.CreateGameObject().lock();
     std::shared_ptr<GameObject> B = world.CreateGameObject().lock();
     A->SetParent(B);
@@ -2253,13 +3058,13 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     std::cout << v2[0].attributeInfos[0].name << "\n";
     */
 
-    testRenderData = new RenderData(testMaterial, m2);
+    //testRenderData = new RenderData(testMaterial, m2);
 
     //testRenderData->indexBuffer = ModelInfo2::GetConvertPolyToWireIndexBuffer(testRenderData->indexBuffer);
     //testRenderData->renderBufferList = ModelInfo2::GetConvertIndexToArrayDataBuffers(testRenderData->indexBuffer, testRenderData->renderBufferList);
     //testRenderData->indexBuffer = ModelInfo2::GetConvertSequenceIndexBuffers(testRenderData->indexBuffer);
-    testRenderData->UpdateAll();
-    testMaterial->drawType = GL_TRIANGLES;
+    //testRenderData->UpdateAll();
+    //testMaterial->drawType = GL_TRIANGLES;
 
     glutDisplayFunc(drawScene); // 출력 함수의 지정
     glutReshapeFunc(Reshape); // 다시 그리기 함수 지정
@@ -2288,7 +3093,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
 
     //ImGui_ImplGLUT_InstallFuncs();
 
-    std::cout << "ImGUI Init Completed\n";
+    NormalLog(std::cerr, "Log") << "ImGUI 초기화 Completed\n";
     splitLine();
 
     //----------------------------------------------------
@@ -2316,9 +3121,21 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
 
             CorePipeline::deltaTime = CorePipeline::totalTime / 1000.0f;
 
-            std::cout << frameTotal << "\n";
             world.WorldUpdate();
             world.WorldRender();
+            auto modelMatrix = glm::mat4(1.0f);
+            modelMatrix = glm::translate(modelMatrix, glm::vec3(0, 0, 0));
+            modelMatrix = glm::rotate(modelMatrix, angle * 2 * D2R, glm::vec3(0, 1, 0));
+            modelMatrix = glm::scale(modelMatrix, glm::vec3(1, 1, 1));
+            world.uniformStorage->PushUniform(UniformSegment("matrix_ModelToWorld", GL_FLOAT_MAT4).SetData(modelMatrix));
+
+
+            auto viewMatrix = glm::lookAt(glm::vec3(0,1.0f, pushZ ? -2 : -4), glm::vec3(0, 1, 0), glm::vec3(0, 1.0f, 0));
+            viewMatrix = glm::rotate(viewMatrix, 0.0f, glm::vec3(0, 0, 1));
+            auto projectionMatrix = glm::perspective(34.0f * D2R, (float)windowX / windowY, 0.03f, 100.0f);
+
+            world.uniformStorage->PushUniform(UniformSegment("matrix_ViewProjection", GL_FLOAT_MAT4).SetData(projectionMatrix * viewMatrix));
+
             glutPostRedisplay();
 
             if (CorePipeline::targetFrameLock)
@@ -2334,10 +3151,11 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     ImGui_ImplGLUT_Shutdown();
     ImGui::DestroyContext();
 
+    //_CrtDumpMemoryLeaks();
+
     return 0;
 }
-float mouseX = 0;
-float angle = 0;
+
 GLvoid drawScene()
 {
     ImGui_ImplOpenGL3_NewFrame();
@@ -2380,7 +3198,7 @@ GLvoid drawScene()
 
     //glEnable(GL_CULL_FACE);
     //glFrontFace(GL_BACK);
-
+    /*
     auto location = glGetUniformLocation(testMaterial->shader->shaderID, "matM");
     if (location != -1)
     {
@@ -2391,6 +3209,11 @@ GLvoid drawScene()
         modelMatrix = glm::scale(modelMatrix, glm::vec3(1, 1, 1));
         glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(modelMatrix));
     }
+    */
+    testMaterial->shader->uniformStorage->UpdateUniforms(*world.uniformStorage.get());
+
+    for (int i = 0; i < testMaterial->shader->uniformStorage->uniformList.size(); i++)
+        testMaterial->shader->uniformStorage->uniformList[i].Bind();
     /*
     location = glGetUniformLocation(testShader.shaderID, "u_color");
     if (location != -1)
@@ -2403,8 +3226,21 @@ GLvoid drawScene()
     //testMaterial->Render(testModel)->IndexRender(testModel);
     //Material(&testShader).Render(testModel)->ArrayRender(testModel);
     //testRenderData->RenderingArray();
+    
     for (int i = 0; i < klee.size(); i++)
+    {
+        klee[i]->material->shader->Bind();
+        klee[i]->material->shader->uniformStorage->UpdateUniforms(*world.uniformStorage.get());
+        klee[i]->material->shader->uniformStorage->UpdateUniforms(*klee[i]->material->uniformStorage.get());
+        //glActiveTexture(GL_TEXTURE0);
+        //glActiveTexture(GL_TEXTURE1);
+        //glActiveTexture(GL_TEXTURE2);
+        for (int j = 0; j < klee[i]->material->shader->uniformStorage->uniformList.size(); j++)
+        {
+            klee[i]->material->shader->uniformStorage->uniformList[j].Bind();
+        }
         klee[i]->RenderingIndex();
+    }
     //testRenderData->RenderingIndex();
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -2440,6 +3276,8 @@ void Keyboard(int key, bool spec, int state, int x, int y)
     switch (key) {
     case 'w':
         //keyUp = state == GLUT_DOWN ? 1 : 0;
+        if (state == GLUT_DOWN)
+            pushZ = !pushZ;
         break;
     }
     switch (specKey)
@@ -2475,7 +3313,7 @@ void Motion(int x, int y)
     glm::vec2 mousePos = glm::vec2(((float)x / windowX) * 2 - 1, (((float)y / windowY) * 2 - 1) * -1);
     if (mouseLeftPush)
     {
-        angle -= (mousePos.x - mouseX) * 100;
+        angle += (mousePos.x - mouseX) * 100;
         mouseX = mousePos.x;
     }
 }
