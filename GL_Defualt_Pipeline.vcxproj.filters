@@ -22,6 +22,9 @@
     <Filter Include="imgui">
       <UniqueIdentifier>{4a52c445-3d35-4b6d-bba5-2a0221e84e1e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="image_loader">
+      <UniqueIdentifier>{1dc7e824-c8e3-46f2-b1b5-f48ee9465d8e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="imgui\imgui_demo.cpp">
@@ -90,6 +93,12 @@
     </ClInclude>
     <ClInclude Include="imgui_local\imgui_impl_opengl3.h">
       <Filter>imgui_local</Filter>
+    </ClInclude>
+    <ClInclude Include="image_loader\stb_image.h">
+      <Filter>image_loader</Filter>
+    </ClInclude>
+    <ClInclude Include="image_loader\SOIL.h">
+      <Filter>image_loader</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
