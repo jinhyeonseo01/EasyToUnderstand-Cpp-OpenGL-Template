@@ -1,6 +1,7 @@
 ﻿// -------------
 #define _CRT_SECURE_NO_WARNINGS
 
+
 #include <iostream>
 #include <iomanip>
 
@@ -15,6 +16,10 @@
 #include "imgui/imgui.h"
 #include "imgui_local/imgui_impl_glut.h"
 #include "imgui_local/imgui_impl_opengl3.h"
+
+//#include "image_loader/stb_image.h"
+#include "image_loader/SOIL.h"
+
 //----------
 
 #include <gl/glew.h>
@@ -30,6 +35,7 @@
 #include <assimp/cimport.h>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
+
 // -------------
 
 
@@ -40,7 +46,9 @@
 
 #pragma region GL_Shader
 
-// glew32.lib freeglut.lib assimp-vc143-mt.lib
+// #pragma comment(lib,"./StudyDLL.lib")
+// $(SolutionDir)3rd Party\dll
+// glew32.lib freeglut.lib assimp-vc143-mt.lib SOIL.lib
 
 #define D2R 0.01745329251994327f
 #define R2D 57.2957795130823799f
@@ -1006,13 +1014,20 @@ void UniformSegment::Bind()
         case GL_UNSIGNED_INT_VEC3:  glUniform3i(location, (unsigned int)data_vector_int.x, (unsigned int)data_vector_int.y, (unsigned int)data_vector_int.z); break;
         case GL_UNSIGNED_INT_VEC4:  glUniform4i(location, (unsigned int)data_vector_int.x, (unsigned int)data_vector_int.y, (unsigned int)data_vector_int.z, (unsigned int)data_vector_int.w); break;
         
-        case GL_TEXTURE_1D:         glUniform1i(location, data_vector_int.x); break;
-        case GL_TEXTURE_1D_ARRAY:   glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_1D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_1D_ARRAY:   glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
         
-        case GL_TEXTURE_2D:         glUniform1i(location, data_vector_int.x); break;
-        case GL_TEXTURE_2D_ARRAY:   glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_2D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_2D_ARRAY:   glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
 
-        case GL_TEXTURE_3D:         glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_3D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+
+        case GL_SAMPLER_1D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_SAMPLER_2D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_SAMPLER_3D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_SAMPLER_CUBE:       glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_SAMPLER_1D_SHADOW:  glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_SAMPLER_2D_SHADOW:  glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
 
         //case GL_FLOAT_MAT2x3:       elementType = GL_FLOAT; col = 2; row = 3; break;
         //case GL_FLOAT_MAT2x4:       elementType = GL_FLOAT; col = 2; row = 4; break;
@@ -1412,7 +1427,7 @@ public:
             for (int j = 0; j < resultBuferDatas[i].attributeInfos.size(); j++)
             {
                 int shaderAttributeIndex = -1;
-                for (int k = 0; k < resultBuferDatas[i].attributeInfos.size(); k++)
+                for (int k = 0; k < shader->attributeInfos.size(); k++)
                     if (strcmp(resultBuferDatas[i].attributeInfos[j].name, shader->attributeInfos[k].name) == 0)
                     {
                         shaderAttributeIndex = k;
@@ -2067,6 +2082,47 @@ Shader CreateShaderProgram(ShaderCode&& vertexShaderCode, ShaderCode&& fragmentS
     return newShader;
 }
 
+
+unsigned int LoadTextureImage(const char* imageDir)
+{
+    // 1. Load Image
+    int imageWidth, imageHeight;
+    unsigned char* image = SOIL_load_image(imageDir,
+        &imageWidth, &imageHeight, NULL, SOIL_LOAD_RGBA);
+
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    // 3. Setup Options
+    // UV 벗어날 경우 텍스쳐 반복
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    // 텍스쳐 축소/확대 필터 설정
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    // 4. Generate Texture2D
+    if (image)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, imageWidth, imageHeight, 0,
+            GL_RGBA, GL_UNSIGNED_BYTE, image);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        ErrorLog(std::cerr, "Error", 0) << "Texture Load 실패 - " << imageDir << "\n";
+    }
+
+    SOIL_free_image_data(image); // Release image
+
+    return textureID;
+}
+
+
+
+
 #pragma endregion
 
 class GameObject;
@@ -2616,6 +2672,7 @@ static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 World world;
 float mouseX = 0;
 float angle = 0;
+bool pushZ = false;
 
 int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정 { //--- 윈도우 생성하기
 {
@@ -2676,14 +2733,15 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     */
     testMaterial = new Material(&testShader);
     testMaterial->drawType = GL_TRIANGLES;
+    testMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Hair_Diffuse.png")));
 
-    NormalLog(std::cout) << "테스트테스트2" << std::endl;
-    NormalLog(std::cout) << "테스트테스트" << std::endl;
-    NormalLog(std::cout, "Log", 1) << "테스트테스트" << std::endl;
-    NormalLog(std::cout, "Log", 2) << "테스트테스트" << std::endl;
-    NormalLog(std::cout, "ASDASD", 2) << "테스트테스트" << std::endl;
-    NormalLog(std::cout, "Log", 3) << "테스트테스트" << std::endl;
-    NormalLog(std::cout, "Log", 2) << "테스트테스트" << std::endl;
+    auto testBodyMaterial = new Material(&testShader);
+    testBodyMaterial->drawType = GL_TRIANGLES;
+    testBodyMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Body_Diffuse.png")));
+    
+    auto testFaceMaterial = new Material(&testShader);
+    testFaceMaterial->drawType = GL_TRIANGLES;
+    testFaceMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Face_Diffuse.png")));
 
     /* 방법 1.
     float testPosition[16] = { 0, 0, 0, 1,
@@ -2745,12 +2803,12 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     */
 
 
-    testModel = new ModelInfo();
-    testModel->Init();
-    testModel->SetIndexBuffer(testIndexs, sizeof(testIndexs));
-    testModel->SetArrayCount(3);
-    testModel->SetBufferData("positionOS", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 0); // todo : 이부분 다시 체크 3* sizeof(float)로
-    testModel->SetBufferData("vertexColor", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 4 * sizeof(float));
+    //testModel = new ModelInfo();
+    //testModel->Init();
+    //testModel->SetIndexBuffer(testIndexs, sizeof(testIndexs));
+    //testModel->SetArrayCount(3);
+    //testModel->SetBufferData("positionOS", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 0); // todo : 이부분 다시 체크 3* sizeof(float)로
+    //testModel->SetBufferData("vertexColor", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 4 * sizeof(float));
 
 
     float* meshVertexBuffer;
@@ -2770,6 +2828,8 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
             meshVertexList.push_back((pScene->mMeshes[k]->mNormals[i]).y);
             meshVertexList.push_back((pScene->mMeshes[k]->mNormals[i]).z);
             meshVertexList.push_back(1.0f);
+            meshVertexList.push_back((pScene->mMeshes[k]->mTextureCoords[0][i]).x);
+            meshVertexList.push_back((pScene->mMeshes[k]->mTextureCoords[0][i]).y);
         }
         for (unsigned int i = 0; i < pScene->mMeshes[k]->mNumFaces; ++i)
         {
@@ -2787,14 +2847,25 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
         for (int i = 0; i < (int)meshVertexList.size(); i++)
             meshVertexBuffer[meshIndex++] = meshVertexList[i];
         ModelInfo2* m = new ModelInfo2({
-            { std::shared_ptr<void>(meshVertexBuffer), (int)(meshVertexList.size()), GL_FLOAT, {{"positionOS", 4}, {"vertexColor", 4} } },
+            { std::shared_ptr<void>(meshVertexBuffer), (int)(meshVertexList.size()), GL_FLOAT, {{"positionOS", 4}, {"vertexColor", 4}, {"uv0", 2} } },
             { std::shared_ptr<void>(meshIndexBuffer), (int)(meshIndexList.size()), GL_UNSIGNED_INT, {{"vertexIndex", 1}}}
             });
-        klee.push_back(new RenderData(testMaterial, m));
+        if (k == 0)
+            klee.push_back(new RenderData(testMaterial, m));
+        if (k == 1)
+            klee.push_back(new RenderData(testBodyMaterial, m));
+        //if (k == 5)
+        //    klee.push_back(new RenderData(testFaceMaterial, m));
+        if (k == 3 || k == 6 || k == 7)
+            klee.push_back(new RenderData(testFaceMaterial, m));
+        //else if (k == 4 || k == 5)
+        //    klee.push_back(new RenderData(testFaceMaterial, m));
+        //else
+        //    klee.push_back(new RenderData(testMaterial, m));
         meshIndexList.clear();
         meshVertexList.clear();
     }
-
+    /*
     auto vertexSize = 8 * 4 * 2;
     auto indexSize = 12 * 3;
     float* vertexBuffer = new float[vertexSize];
@@ -2879,7 +2950,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
             { std::shared_ptr<void>(vertexBuffer), vertexSize, GL_FLOAT, {{"positionOS", 4}, {"vertexColor", 4} } } ,
             { std::shared_ptr<void>(indexBuffer), indexSize, GL_UNSIGNED_INT, {{"vertexIndex", 1}} }
         });
-
+    */
     std::shared_ptr<GameObject> A = world.CreateGameObject().lock();
     std::shared_ptr<GameObject> B = world.CreateGameObject().lock();
     A->SetParent(B);
@@ -2935,13 +3006,13 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     std::cout << v2[0].attributeInfos[0].name << "\n";
     */
 
-    testRenderData = new RenderData(testMaterial, m2);
+    //testRenderData = new RenderData(testMaterial, m2);
 
     //testRenderData->indexBuffer = ModelInfo2::GetConvertPolyToWireIndexBuffer(testRenderData->indexBuffer);
     //testRenderData->renderBufferList = ModelInfo2::GetConvertIndexToArrayDataBuffers(testRenderData->indexBuffer, testRenderData->renderBufferList);
     //testRenderData->indexBuffer = ModelInfo2::GetConvertSequenceIndexBuffers(testRenderData->indexBuffer);
-    testRenderData->UpdateAll();
-    testMaterial->drawType = GL_TRIANGLES;
+    //testRenderData->UpdateAll();
+    //testMaterial->drawType = GL_TRIANGLES;
 
     glutDisplayFunc(drawScene); // 출력 함수의 지정
     glutReshapeFunc(Reshape); // 다시 그리기 함수 지정
@@ -3002,14 +3073,14 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
             world.WorldRender();
             auto modelMatrix = glm::mat4(1.0f);
             modelMatrix = glm::translate(modelMatrix, glm::vec3(0, 0, 0));
-            modelMatrix = glm::rotate(modelMatrix, angle * D2R, glm::vec3(0, 1, 0));
+            modelMatrix = glm::rotate(modelMatrix, angle * 2 * D2R, glm::vec3(0, 1, 0));
             modelMatrix = glm::scale(modelMatrix, glm::vec3(1, 1, 1));
             world.uniformStorage->PushUniform(UniformSegment("matrix_ModelToWorld", GL_FLOAT_MAT4).SetData(modelMatrix));
 
 
-            auto viewMatrix = glm::lookAt(glm::vec3(0,1,-2), glm::vec3(0, 1, 0), glm::vec3(0, 1, 0));
+            auto viewMatrix = glm::lookAt(glm::vec3(0,1.0f, pushZ ? -2 : -4), glm::vec3(0, 1, 0), glm::vec3(0, 1.0f, 0));
             viewMatrix = glm::rotate(viewMatrix, 0.0f, glm::vec3(0, 0, 1));
-            auto projectionMatrix = glm::perspective(60.0f * D2R, (float)windowX / windowY, 0.03f, 100.0f);
+            auto projectionMatrix = glm::perspective(34.0f * D2R, (float)windowX / windowY, 0.03f, 100.0f);
 
             world.uniformStorage->PushUniform(UniformSegment("matrix_ViewProjection", GL_FLOAT_MAT4).SetData(projectionMatrix * viewMatrix));
 
@@ -3103,8 +3174,21 @@ GLvoid drawScene()
     //testMaterial->Render(testModel)->IndexRender(testModel);
     //Material(&testShader).Render(testModel)->ArrayRender(testModel);
     //testRenderData->RenderingArray();
+    
     for (int i = 0; i < klee.size(); i++)
+    {
+        klee[i]->material->shader->Bind();
+        klee[i]->material->shader->uniformStorage->UpdateUniforms(*world.uniformStorage.get());
+        klee[i]->material->shader->uniformStorage->UpdateUniforms(*klee[i]->material->uniformStorage.get());
+        //glActiveTexture(GL_TEXTURE0);
+        //glActiveTexture(GL_TEXTURE1);
+        //glActiveTexture(GL_TEXTURE2);
+        for (int j = 0; j < klee[i]->material->shader->uniformStorage->uniformList.size(); j++)
+        {
+            klee[i]->material->shader->uniformStorage->uniformList[j].Bind();
+        }
         klee[i]->RenderingIndex();
+    }
     //testRenderData->RenderingIndex();
 
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -3140,6 +3224,8 @@ void Keyboard(int key, bool spec, int state, int x, int y)
     switch (key) {
     case 'w':
         //keyUp = state == GLUT_DOWN ? 1 : 0;
+        if (state == GLUT_DOWN)
+            pushZ = !pushZ;
         break;
     }
     switch (specKey)
@@ -3175,7 +3261,7 @@ void Motion(int x, int y)
     glm::vec2 mousePos = glm::vec2(((float)x / windowX) * 2 - 1, (((float)y / windowY) * 2 - 1) * -1);
     if (mouseLeftPush)
     {
-        angle -= (mousePos.x - mouseX) * 100;
+        angle += (mousePos.x - mouseX) * 100;
         mouseX = mousePos.x;
     }
 }
