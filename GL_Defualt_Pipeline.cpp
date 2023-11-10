@@ -47,7 +47,7 @@
 #pragma region GL_Shader
 
 // #pragma comment(lib,"./StudyDLL.lib")
-// $(SolutionDir)3rd Party\dll
+// $(SolutionDir)3rd Party\lib $(SolutionDir)3rd Party\include
 // glew32.lib freeglut.lib assimp-vc143-mt.lib SOIL.lib
 
 #define D2R 0.01745329251994327f
