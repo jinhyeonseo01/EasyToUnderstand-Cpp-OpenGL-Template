@@ -861,58 +861,6 @@ public:
         *_col = col;
         *_row = row;
     }
-
-    static void GL_TypeToSplitType(unsigned int* _type, int* _col, int* _row)
-    {
-        unsigned int elementType = *_type;
-        int col = *_col;
-        int row = *_row;
-
-        switch (*_type)
-        {
-        case GL_FLOAT:              elementType = GL_FLOAT; col = 1; row = 1; break;
-        case GL_FLOAT_VEC2:         elementType = GL_FLOAT; col = 2; row = 1; break;
-        case GL_FLOAT_VEC3:         elementType = GL_FLOAT; col = 3; row = 1; break;
-        case GL_FLOAT_VEC4:         elementType = GL_FLOAT; col = 4; row = 1; break;
-        case GL_FLOAT_MAT2:         elementType = GL_FLOAT; col = 2; row = 2; break;
-        case GL_FLOAT_MAT3:         elementType = GL_FLOAT; col = 3; row = 3; break;
-        case GL_FLOAT_MAT4:         elementType = GL_FLOAT; col = 4; row = 4; break;
-        case GL_FLOAT_MAT2x3:       elementType = GL_FLOAT; col = 2; row = 3; break;
-        case GL_FLOAT_MAT2x4:       elementType = GL_FLOAT; col = 2; row = 4; break;
-        case GL_FLOAT_MAT3x2:       elementType = GL_FLOAT; col = 3; row = 2; break;
-        case GL_FLOAT_MAT3x4:       elementType = GL_FLOAT; col = 3; row = 4; break;
-        case GL_FLOAT_MAT4x2:       elementType = GL_FLOAT; col = 4; row = 2; break;
-        case GL_FLOAT_MAT4x3:       elementType = GL_FLOAT; col = 4; row = 3; break;
-
-        case GL_DOUBLE:             elementType = GL_DOUBLE; col = 1; row = 1; break;
-        case GL_DOUBLE_VEC2:        elementType = GL_DOUBLE; col = 2; row = 1; break;
-        case GL_DOUBLE_VEC3:        elementType = GL_DOUBLE; col = 3; row = 1; break;
-        case GL_DOUBLE_VEC4:        elementType = GL_DOUBLE; col = 4; row = 1; break;
-        case GL_DOUBLE_MAT2:        elementType = GL_DOUBLE; col = 2; row = 2; break;
-        case GL_DOUBLE_MAT3:        elementType = GL_DOUBLE; col = 3; row = 3; break;
-        case GL_DOUBLE_MAT4:        elementType = GL_DOUBLE; col = 4; row = 4; break;
-        case GL_DOUBLE_MAT2x3:      elementType = GL_DOUBLE; col = 2; row = 3; break;
-        case GL_DOUBLE_MAT2x4:      elementType = GL_DOUBLE; col = 2; row = 4; break;
-        case GL_DOUBLE_MAT3x2:      elementType = GL_DOUBLE; col = 3; row = 2; break;
-        case GL_DOUBLE_MAT3x4:      elementType = GL_DOUBLE; col = 3; row = 4; break;
-        case GL_DOUBLE_MAT4x2:      elementType = GL_DOUBLE; col = 4; row = 2; break;
-        case GL_DOUBLE_MAT4x3:      elementType = GL_DOUBLE; col = 4; row = 3; break;
-
-        case GL_INT:                elementType = GL_INT; col = 1; row = 1; break;
-        case GL_INT_VEC2:           elementType = GL_INT; col = 2; row = 1; break;
-        case GL_INT_VEC3:           elementType = GL_INT; col = 3; row = 1; break;
-        case GL_INT_VEC4:           elementType = GL_INT; col = 4; row = 1; break;
-
-        case GL_UNSIGNED_INT:       elementType = GL_UNSIGNED_INT; col = 1; row = 1; break;
-        case GL_UNSIGNED_INT_VEC2:  elementType = GL_UNSIGNED_INT; col = 2; row = 1; break;
-        case GL_UNSIGNED_INT_VEC3:  elementType = GL_UNSIGNED_INT; col = 3; row = 1; break;
-        case GL_UNSIGNED_INT_VEC4:  elementType = GL_UNSIGNED_INT; col = 4; row = 1; break;
-        }
-
-        *_type = elementType;
-        *_col = col;
-        *_row = row;
-    }
 };
 unsigned int Shader::currentShaderID = UINT_MAX;
 unsigned int Shader::currentVAOID = 0;
