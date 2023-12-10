@@ -65,6 +65,12 @@
     <None Include="Shaders\gl_vertex.glsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="Shaders\gl_Anim_vertex.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\gl_Anim_fragment.glsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="imgui\imgui_internal.h">
@@ -99,6 +105,21 @@
     </ClInclude>
     <ClInclude Include="image_loader\SOIL.h">
       <Filter>image_loader</Filter>
+    </ClInclude>
+    <ClInclude Include="total_include.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="gl_pipeline.hpp">
+      <Filter>소스 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="gl_pipeline.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="defualt_include.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="assimpEx.h">
+      <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

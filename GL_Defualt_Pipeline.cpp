@@ -1,47 +1,5 @@
-﻿// -------------
-#define _CRT_SECURE_NO_WARNINGS
-
-
-#include <iostream>
-#include <iomanip>
-
-#include <chrono>
-#include <Thread>
-#include <time.h>
-#include <windows.h>
-
-#include <fstream>
-
-//imgui
-#include "imgui/imgui.h"
-#include "imgui_local/imgui_impl_glut.h"
-#include "imgui_local/imgui_impl_opengl3.h"
-
-//#include "image_loader/stb_image.h"
-#include "image_loader/SOIL.h"
-
-//----------
-
-#include <gl/glew.h>
-#include <gl/freeglut.h>
-#include <gl/freeglut_ext.h>
-
-#include <gl/glm/glm.hpp>
-#include <gl/glm/ext.hpp>
-#include <gl/glm/gtc/matrix_transform.hpp>
-#include <unordered_map>
-
-#include <assimp/Importer.hpp>
-#include <assimp/cimport.h>
-#include <assimp/postprocess.h>
-#include <assimp/scene.h>
-
-// -------------
-
-
-#include <random>
-#include <math.h>
-
+﻿
+#include "total_include.h"
 
 
 #pragma region GL_Shader
@@ -50,109 +8,6 @@
 // $(SolutionDir)3rd Party\lib $(SolutionDir)3rd Party\include
 // glew32.lib freeglut.lib assimp-vc143-mt.lib SOIL.lib
 
-#define D2R 0.01745329251994327f
-#define R2D 57.2957795130823799f
-
-#define Max(a, b) (a>b?a:b)
-#define Min(a, b) (a<b?a:b)
-
-
-void splitLine()
-{
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
-    std::cerr << "──────────────────────────────────────────────────────────────────────────────────────────\n";
-}
-std::ostream& Log()
-{
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
-    return std::cerr;
-}
-std::ostream& ErrorLog(std::ostream& o, const char* log = "Error", int depth = 0)
-{
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
-    for (int i = depth - 1; i >= 0; i--)
-        o << ((i == 0) ? "       ├ " : "       │ ");
-    o << std::setw(8);
-    o << log;
-    o << ": ";
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 12);
-    return o;
-}
-std::ostream& NormalLog(std::ostream& o, const char* log = "Log", int depth = 0)
-{
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
-    for (int i = depth - 1; i >= 0; i--)
-        o << ((i == 0) ? "       ├ " : "       │ ");
-    o << std::setw(8);
-    o << log;
-    o << ": ";
-    if (strcmp(log, "Try") == 0)
-        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 2);
-    if (strcmp(log, "Info") == 0)
-        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 1);
-    return o;
-}
-std::ostream& WarringLog(std::ostream& o, const char* log = "Warring", int depth = 0)
-{
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 15);
-    for (int i = depth - 1; i >= 0; i--)
-        o << ((i == 0) ? "       ├ " : "       │ ");
-    o << std::setw(8);
-    o << log;
-    o << ": ";
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 14);
-    return o;
-}
-
-char* filetobuf(const char* file)
-{
-    std::ifstream in(file, std::ios_base::binary);
-    if (!in)
-    {
-        ErrorLog(std::cerr) << file << "Shader File Load - Falled : 경로 잘못됨\n";
-        return nullptr;
-    }
-    in.seekg(0, std::ios_base::end);
-    long len = in.tellg();
-    char* buf = new char[len + 1];
-    in.seekg(0, std::ios_base::beg);
-    int cnt = -1;
-    while (in >> std::noskipws >> buf[++cnt]) {}
-    buf[len] = 0;
-    return buf;
-}
-
-bool randomInit = false;
-std::default_random_engine engine;
-int RandomInt()
-{
-    if (randomInit == false)
-    {
-        randomInit = true;
-        engine.seed(1234);
-    }
-    return engine();
-}
-
-int rand2()
-{
-    return RandomInt();
-}
-
-struct hash_str {
-    size_t operator()(const char* s) const {
-        size_t v = 0;
-        while (char c = *s++) {
-            v = (v << 6) + (v << 16) - v + c;
-            return std::hash<int>()(v);
-        }
-    }
-};
-struct equal_str {
-    bool operator () (const char* a, const char* b) const {
-        return strcmp(a, b) == 0;
-    }
-};
 
 class AABB
 {
@@ -181,36 +36,6 @@ public:
         this->min.z = 0.0f;
         this->max.z = 0.0f;
     }
-    /*
-    AABB(glm::vec3 pos, glm::vec3 size)
-    {
-        this->min = pos - size;
-        this->min = pos + size;
-
-        this->min.x = max.x >= min.x ? min.x : max.x;
-        this->max.x = max.x < min.x ? min.x : max.x;
-
-        this->min.y = max.y >= min.y ? min.y : max.y;
-        this->max.y = max.y < min.y ? min.y : max.y;
-
-        this->min.z = max.z >= min.z ? min.z : max.z;
-        this->max.z = max.z < min.z ? min.z : max.z;
-    }
-    AABB(glm::vec2 pos, glm::vec2 size)
-    {
-        this->min = glm::vec3(pos - size, 0);
-        this->max = glm::vec3(pos + size, 0);
-
-        this->min.x = max.x >= min.x ? min.x : max.x;
-        this->max.x = max.x < min.x ? min.x : max.x;
-
-        this->min.y = max.y >= min.y ? min.y : max.y;
-        this->max.y = max.y < min.y ? min.y : max.y;
-
-        this->min.z = max.z >= min.z ? min.z : max.z;
-        this->max.z = max.z < min.z ? min.z : max.z;
-    }
-    */
     AABB(glm::vec3 pos, glm::vec3 minSize, glm::vec3 maxSize)
     {
         this->min = pos - minSize;
@@ -255,30 +80,55 @@ public:
 
 
 
-class ShaderCode;
-class Shader;
-class ModelInfo2;
-class ModelInfo;
-
-class UniformSegment;
-class AttributeSegment;
-class UniformStorage;
-
 class Material
 {
 public:
     Shader* shader;
     std::shared_ptr<UniformStorage> uniformStorage;
 
+    bool para_zTest = true;
+    bool para_zWrite = true;
+    bool para_stencil = false;
+    bool para_culling = true;
+    bool para_transparent = false;
+
+    unsigned int para_prevAlpha = GL_ONE_MINUS_SRC_ALPHA;
+    unsigned int para_nextAlpha = GL_SRC_ALPHA;
+    unsigned int para_cullingFace = GL_BACK; //GL_FRONT(기본), GL_BACK, GL_FORNT_AND_BACK
+    unsigned int para_cullingCycle = GL_CCW; //GL_CCW(기본) GL_CW
+    unsigned int para_zTestType = GL_LEQUAL;
+    unsigned int para_stencilType = GL_ALWAYS;
+    unsigned int para_stencilMask = 0x00; //0x00~0xFF
+    unsigned int para_stencil_sfail = GL_KEEP;
+    unsigned int para_stencil_dpfail = GL_KEEP;
+    unsigned int para_stencil_dppass = GL_KEEP;
+
+    //GL_ALWAYS	    depth test가 항상 통과됩니다.
+    //GL_NEVER	    depth test가 절대 통과되지 않습니다.
+    //GL_LESS	    fragment의 깊이 값이 저장된 깊이 값보다 작을 경우 통과시킵니다. (기본)
+    //GL_EQUAL	    fragment의 깊이 값이 저장된 깊이 값과 동일한 경우 통과시킵니다.
+    //GL_LEQUAL	    fragment의 깊이 값이 저장된 깂이 값과 동일하거나 작을 경우 통과시킵니다.
+    //GL_GREATER	fragment의 깊이 값이 저장된 깊이 값보다 클 경우 통과시킵니다.
+    //GL_NOTEQUAL	fragment의 깊이 값이 저장된 깊이 값과 동일하지 않을 경우 통과시킵니다.
+    //GL_GEQUAL	    fragment의 깊이 값이 저장된 깊이 값과 동일하거나 클 경우 통과시킵니다.
+
+    //스텐실
+    //GL_KEEP	현재 저장된 stencil 값을 유지 (기본)
+    //GL_ZERO	stencil 값을 0으로 설정
+    //GL_REPLACE	stencil 값을 glStencilFunc 함수에서 지정한 레퍼런스 값으로 설정
+    //GL_INCR	최댓값보다 작다면 stencil 값을 1만큼 증가시킴
+    //GL_INCR_WRAP	GL_INCR와 같지만 최댓값을 초과하면 0로 돌아옴
+    //GL_DECR	최솟값보다 크다면 stencil 값을 1만큼 감소시킴
+    //GL_DECR_WRAP	GL_DECR와 같지만 0보다 작다면 최댓값으로 설정함
+    //GL_INVERT	현재 stencil buffer 값의 비트를 뒤집음
+
     Material(Shader* shader);
     void SetShader(Shader* shader);
     unsigned int drawType = GL_TRIANGLES;
-    void IndexRender(ModelInfo* model);
-    void ArrayRender(ModelInfo* model);
-    Material* Render(ModelInfo* model);
+    //void IndexRender(ModelInfo* model);
+    //void ArrayRender(ModelInfo* model);
+    //Material* Render(ModelInfo* model);
 };
-class RenderData;
-class ModelBufferData;
 
 class AttributeSegment
 {
@@ -544,17 +394,98 @@ public:
     }
 };
 
+
+class Loader
+{
+public:
+
+    static std::shared_ptr<aiScene> ModelNotUV(const char* path, Assimp::Importer& importer)
+    {
+        aiScene* pScene = (aiScene*)importer.ReadFile(path,
+            aiProcess_Triangulate | // 4각형 5각형을 3각형으로
+            //aiProcess_GenSmoothNormals | // Normal이 없으면 Smmoth Normal 생성
+            aiProcess_GenNormals | // Normal이 없으면 Normal 생성
+            //aiProcess_SplitLargeMeshes // 매쉬가 너무 클때 쪼개는거 매쉬 클때 렌더링 유리.
+            //aiProcess_ImproveCacheLocality | 삼각형 개선. 잘 되면 켜보기
+            aiProcess_GenUVCoords | // UV없으면 UV 계산하게[ 시키기
+            //aiProcess_Debone | 손실없이 뼈 제거. 걍 쓰지말자.
+            //aiProcess_MakeLeftHanded | // 왼손 좌표계로 변경
+            //aiProcess_RemoveComponent | // (animations, materials, light sources, cameras, textures, vertex components 제거
+            //aiProcess_PreTransformVertices | // root Node를 제외한 모든 하위 노드들 전부 평탄화. 계층 제거.
+            //aiProcess_ValidateDataStructure | // 연결 유효성 검사
+            //aiProcess_ImproveCacheLocality | // 캐시히트율을 위해 삼각형 재정렬함.
+            //aiProcess_RemoveRedundantMaterials | // 중복이나 안쓰는거 제거
+            //aiProcess_FixInfacingNormals | //잘못 연결되서 고장난 노멀 재대로 수정
+            //aiProcess_FindDegenerates | //삼각형에서 점이 겹쳐버리면 라인이나 점이 되버리는데, 이걸 Line이나 Point로 변환하는거임. 안쓰는게 나음.
+            aiProcess_FindInvalidData | //유효하지 않는 법선벡터, UV를 제거함. 이렇게 제거하고 나면 aiProcess_GenNormals같은게 새롭게 생성해줄거임. 애니메이션에서도 이점이 있다고함.
+            aiProcess_GenUVCoords  | //UV를 자체적으로 계산함. 모델링툴에서 생성하는걸 추천하고, UV가 없으면 새롭게 생성하는거임.
+            //aiProcess_FindInstances | 너무 매쉬가 많을때 키나봄. 느리다는거같음. 같은 재질인 매쉬들을 하나로 합쳐버리는 기능인듯.
+            //aiProcess_OptimizeMeshes |// 매쉬 를 줄여주는 최적화 옵션인듯. aiProcess_OptimizeGraph랑 같이 쓰는게 좋고, #aiProcess_SplitLargeMeshes and #aiProcess_SortByPType.랑 호환됨.
+            //걍 안키는게 나을듯. 뭔가 밑에 옵션이랑 호환되는 모양인데, 밑에 옵션을 못씀.
+            //aiProcess_OptimizeGraph |//필요없는 노드를 삭제함. 노드가 태그로 쓰일때 누락되는 문제가 잇나봄, 안키는게 나을듯. 계층구조가 손실된다고 함.
+            //aiProcess_FlipWindingOrder | CW, CCW 바꾸는거임.
+            aiProcess_TransformUVCoords | //UV에 대해서 변환처리 한다고 하는거같음. 텍스쳐 이상해지면 꺼버리도록
+            aiProcess_FlipUVs | // 말그대로 uv의 y축을 뒤집음. 그리고 bitangent도 뒤집음.
+            aiProcess_JoinIdenticalVertices | // 인덱스 버퍼 기반으로 변환
+            aiProcess_CalcTangentSpace | // 탄젠트 계산
+            aiProcess_SortByPType // 폴리곤을 타입별로 재정렬함. aiProcess_Triangulate 쓰면 어차피 삼각형만 남아서 필요 없음. 일단 넣어~
+        );
+        return std::shared_ptr<aiScene>(pScene);
+    }
+    static std::shared_ptr<aiScene> ModelLoad(const char* path, Assimp::Importer& importer)
+    {
+        //"./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch.fbx"
+        NormalLog(std::cerr) << "Model File Load - " << path << "\n";
+        aiScene* pScene = (aiScene*)importer.ReadFile(path,
+            aiProcess_Triangulate | // 4각형 5각형을 3각형으로
+            //aiProcess_GenSmoothNormals | // Normal이 없으면 Smmoth Normal 생성
+            aiProcess_GenNormals | // Normal이 없으면 Normal 생성
+            //aiProcess_SplitLargeMeshes // 매쉬가 너무 클때 쪼개는거 매쉬 클때 렌더링 유리.
+            //aiProcess_ImproveCacheLocality | 삼각형 개선. 잘 되면 켜보기
+            aiProcess_GenUVCoords | // UV없으면 UV 계산하게[ 시키기
+            //aiProcess_Debone | 손실없이 뼈 제거. 걍 쓰지말자.
+            //aiProcess_MakeLeftHanded | // 왼손 좌표계로 변경
+            //aiProcess_RemoveComponent | // (animations, materials, light sources, cameras, textures, vertex components 제거
+            //aiProcess_PreTransformVertices | // root Node를 제외한 모든 하위 노드들 전부 평탄화. 계층 제거.
+            //aiProcess_ValidateDataStructure | // 연결 유효성 검사
+            //aiProcess_ImproveCacheLocality | // 캐시히트율을 위해 삼각형 재정렬함.
+            //aiProcess_RemoveRedundantMaterials | // 중복이나 안쓰는거 제거
+            //aiProcess_FixInfacingNormals | //잘못 연결되서 고장난 노멀 재대로 수정
+            //aiProcess_FindDegenerates | //삼각형에서 점이 겹쳐버리면 라인이나 점이 되버리는데, 이걸 Line이나 Point로 변환하는거임. 안쓰는게 나음.
+            aiProcess_FindInvalidData | //유효하지 않는 법선벡터, UV를 제거함. 이렇게 제거하고 나면 aiProcess_GenNormals같은게 새롭게 생성해줄거임. 애니메이션에서도 이점이 있다고함.
+            //aiProcess_GenUVCoords  | //UV를 자체적으로 계산함. 모델링툴에서 생성하는걸 추천하고, UV가 없으면 새롭게 생성하는거임.
+            //aiProcess_FindInstances | 너무 매쉬가 많을때 키나봄. 느리다는거같음. 같은 재질인 매쉬들을 하나로 합쳐버리는 기능인듯.
+            //aiProcess_OptimizeMeshes |// 매쉬 를 줄여주는 최적화 옵션인듯. aiProcess_OptimizeGraph랑 같이 쓰는게 좋고, #aiProcess_SplitLargeMeshes and #aiProcess_SortByPType.랑 호환됨.
+            //걍 안키는게 나을듯. 뭔가 밑에 옵션이랑 호환되는 모양인데, 밑에 옵션을 못씀.
+            //aiProcess_OptimizeGraph |//필요없는 노드를 삭제함. 노드가 태그로 쓰일때 누락되는 문제가 잇나봄, 안키는게 나을듯. 계층구조가 손실된다고 함.
+            //aiProcess_FlipWindingOrder | CW, CCW 바꾸는거임.
+            //aiProcess_TransformUVCoords | //UV에 대해서 변환처리 한다고 하는거같음. 텍스쳐 이상해지면 꺼버리도록
+            aiProcess_FlipUVs | // 말그대로 uv의 y축을 뒤집음. 그리고 bitangent도 뒤집음.
+            aiProcess_JoinIdenticalVertices | // 인덱스 버퍼 기반으로 변환
+            aiProcess_CalcTangentSpace | // 탄젠트 계산
+            aiProcess_SortByPType // 폴리곤을 타입별로 재정렬함. aiProcess_Triangulate 쓰면 어차피 삼각형만 남아서 필요 없음. 일단 넣어~
+        );
+        
+        return std::shared_ptr<aiScene>(pScene);
+    }
+    static std::vector<std::shared_ptr<ModelInfo2>> ConvertModelToModelDatas(std::shared_ptr<Model> model, std::shared_ptr<aiScene> aiScene);
+};
+
+
+#define BoneMax 4
+#define BoneMaxCount 200
 class MeshVertex
 {
 public:
-    glm::vec3 pos = glm::vec3(1, 1, 1);
-    glm::vec3 normal = glm::vec3(1, 1, 1);
-    glm::vec3 color = glm::vec3(1, 1, 1);
-    glm::vec3 tangent = glm::vec3(1, 1, 1);
-    glm::vec2 uv0 = glm::vec2(1, 1);
-    glm::vec2 uv1 = glm::vec2(1, 1);
-    glm::vec2 uv2 = glm::vec2(1, 1);
-    glm::vec2 uv3 = glm::vec2(1, 1);
+    glm::vec3 pos = glm::vec3(0, 0, 0);
+    glm::vec3 normal = glm::normalize(glm::vec3(1, 1, 1));
+    glm::vec3 tangent = glm::vec3(0, 1, 0);
+    glm::vec4 colors[8] = { glm::vec4(1, 1, 1, 1), glm::vec4(1, 1, 1, 1), glm::vec4(1, 1, 1, 1), glm::vec4(1, 1, 1, 1), glm::vec4(1, 1, 1, 1), glm::vec4(1, 1, 1, 1), glm::vec4(1, 1, 1, 1), glm::vec4(1, 1, 1, 1) };
+    glm::vec2 uvs[8] = { glm::vec2(0, 0),glm::vec2(0, 0),glm::vec2(0, 0),glm::vec2(0, 0),glm::vec2(0, 0),glm::vec2(0, 0),glm::vec2(0, 0),glm::vec2(0, 0) };
+    int colorCount = 0;
+    int uvCount = 0;
+    int boneIds[BoneMax] = { -1, -1 , -1 ,-1 };
+    float boneWeights[BoneMax] = { 0.0f, 0.0f, 0.0f, 0.0f };
 };
 
 class MeshTexture
@@ -563,18 +494,462 @@ public:
     unsigned int id;
     std::string type;
 };
+struct BoneInfo
+{
+    int id;
+    glm::mat4 offset = glm::mat4(1.0f);;
+};
+
+class Model
+{
+public:
+    std::map<std::string, BoneInfo> boneInfoMap; //
+    int boneCounter = 0;
+    std::vector<std::shared_ptr<Mesh>> meshList;
+    std::vector<std::shared_ptr<Animation>> animationList;
+
+    int GetBoneID(aiBone* bone)
+    {
+        return GetBoneID(std::string(bone->mName.C_Str()), bone);
+    }
+    int GetBoneID(std::string boneName, aiBone* bone)
+    {
+        //std::string boneName = mesh->mBones[j]->mName.C_Str();
+        int boneID = -1;
+        if (boneInfoMap.find(boneName) == boneInfoMap.end())
+        {
+            BoneInfo newBoneInfo;
+            newBoneInfo.id = boneCounter;
+            //이부분 나중에 다이렉트로 바뀌면 같이 수정해야함.
+            newBoneInfo.offset = AssimpGLMHelpers::ConvertMatrixToGLMFormat(bone->mOffsetMatrix);
+            boneInfoMap[boneName] = newBoneInfo;
+            boneID = boneCounter;
+            boneCounter++;
+        }
+        else
+        {
+            boneID = boneInfoMap[boneName].id;
+        }
+        return boneID;
+    }
+    static std::shared_ptr<Model> processModel(std::shared_ptr<aiScene> scene);
+    std::shared_ptr<ModelInfo2> processData();
+};
+
+struct KeyPosition
+{
+    glm::vec3 position;
+    float timeStamp;
+};
+
+struct KeyRotation
+{
+    glm::quat orientation;
+    float timeStamp;
+};
+
+struct KeyScale
+{
+    glm::vec3 scale;
+    float timeStamp;
+};
+
+class Bone
+{
+public:
+    std::vector<KeyPosition> m_Positions;
+    std::vector<KeyRotation> m_Rotations;
+    std::vector<KeyScale> m_Scales;
+    
+    int m_NumPositions = 0;
+    int m_NumRotations = 0;
+    int m_NumScales = 0;
+
+    glm::mat4 m_LocalTransform = glm::mat4(1.0f);
+    std::string m_Name;
+    int m_ID;
+
+    Bone(const std::string& name, int ID, const aiNodeAnim* channel)
+    {
+        this->m_Name = name;
+        this->m_ID = ID;
+        this->m_LocalTransform = glm::mat4(1.0f);
+
+        m_NumPositions = channel->mNumPositionKeys;
+
+        for (int positionIndex = 0; positionIndex < m_NumPositions; ++positionIndex)
+        {
+            aiVector3D aiPosition = channel->mPositionKeys[positionIndex].mValue;
+            float timeStamp = channel->mPositionKeys[positionIndex].mTime;
+            KeyPosition data;
+            data.position = AssimpGLMHelpers::GetGLMVec(aiPosition);
+            data.timeStamp = timeStamp;
+            m_Positions.push_back(data);
+        }
+
+        m_NumRotations = channel->mNumRotationKeys;
+        for (int rotationIndex = 0; rotationIndex < m_NumRotations; ++rotationIndex)
+        {
+            aiQuaternion aiOrientation = channel->mRotationKeys[rotationIndex].mValue;
+            float timeStamp = channel->mRotationKeys[rotationIndex].mTime;
+            KeyRotation data;
+            data.orientation = AssimpGLMHelpers::GetGLMQuat(aiOrientation);
+            data.timeStamp = timeStamp;
+            m_Rotations.push_back(data);
+        }
+
+        m_NumScales = channel->mNumScalingKeys;
+        for (int keyIndex = 0; keyIndex < m_NumScales; ++keyIndex)
+        {
+            aiVector3D scale = channel->mScalingKeys[keyIndex].mValue;
+            float timeStamp = channel->mScalingKeys[keyIndex].mTime;
+            KeyScale data;
+            data.scale = AssimpGLMHelpers::GetGLMVec(scale);
+            data.timeStamp = timeStamp;
+            m_Scales.push_back(data);
+        }
+    }
+
+    void Update(float animationTime)
+    {
+        glm::mat4 translation = InterpolatePosition(animationTime);
+        glm::mat4 rotation = InterpolateRotation(animationTime);
+        glm::mat4 scale = InterpolateScale(animationTime);
+        m_LocalTransform = translation * rotation * scale;
+    }
+
+
+    glm::mat4 GetLocalTransform() { return m_LocalTransform; }
+    std::string GetBoneName() const { return m_Name; }
+    int GetBoneID() { return m_ID; }
+
+
+    int GetPositionIndex(float animationTime)
+    {
+        for (int index = 0; index < m_NumPositions - 1; ++index)
+        {
+            if (animationTime <= m_Positions[index + 1].timeStamp)
+                return index;
+        }
+        assert(0);
+    }
+
+    /* Gets the current index on mKeyRotations to interpolate to based on the
+    current animation time*/
+    int GetRotationIndex(float animationTime)
+    {
+        for (int index = 0; index < m_NumRotations - 1; ++index)
+        {
+            if (animationTime <= m_Rotations[index + 1].timeStamp)
+                return index;
+        }
+        assert(0);
+    }
+
+    /* Gets the current index on mKeyScalings to interpolate to based on the
+    current animation time */
+    int GetScaleIndex(float animationTime)
+    {
+        for (int index = 0; index < m_NumScales - 1; ++index)
+        {
+            if (animationTime <= m_Scales[index + 1].timeStamp)
+                return index;
+        }
+        assert(0);
+    }
+
+    float GetScaleFactor(float lastTimeStamp, float nextTimeStamp, float animationTime)
+    {
+        float scaleFactor = 0.0f;
+        float midWayLength = animationTime - lastTimeStamp;
+        float framesDiff = nextTimeStamp - lastTimeStamp;
+        scaleFactor = midWayLength / framesDiff;
+        return scaleFactor;
+    }
+
+    /*figures out which position keys to interpolate b/w and performs the interpolation
+    and returns the translation matrix*/
+    glm::mat4 InterpolatePosition(float animationTime)
+    {
+        if (1 == m_NumPositions)
+            return glm::translate(glm::mat4(1.0f), m_Positions[0].position);
+
+        int p0Index = GetPositionIndex(animationTime);
+        int p1Index = p0Index + 1;
+        float scaleFactor = GetScaleFactor(m_Positions[p0Index].timeStamp,
+            m_Positions[p1Index].timeStamp, animationTime);
+        glm::vec3 finalPosition = glm::mix(m_Positions[p0Index].position,
+            m_Positions[p1Index].position, scaleFactor);
+        return glm::translate(glm::mat4(1.0f), finalPosition);
+    }
+
+    /*figures out which rotations keys to interpolate b/w and performs the interpolation
+    and returns the rotation matrix*/
+    glm::mat4 InterpolateRotation(float animationTime)
+    {
+        if (1 == m_NumRotations)
+        {
+            auto rotation = glm::normalize(m_Rotations[0].orientation);
+            return glm::toMat4(rotation);
+        }
+
+        int p0Index = GetRotationIndex(animationTime);
+        int p1Index = p0Index + 1;
+        float scaleFactor = GetScaleFactor(m_Rotations[p0Index].timeStamp,
+            m_Rotations[p1Index].timeStamp, animationTime);
+        glm::quat finalRotation = glm::slerp(m_Rotations[p0Index].orientation,
+            m_Rotations[p1Index].orientation, scaleFactor);
+        finalRotation = glm::normalize(finalRotation);
+        return glm::toMat4(finalRotation);
+    }
+
+    /*figures out which scaling keys to interpolate b/w and performs the interpolation
+    and returns the scale matrix*/
+    glm::mat4 InterpolateScale(float animationTime)
+    {
+        if (1 == m_NumScales)
+            return glm::scale(glm::mat4(1.0f), m_Scales[0].scale);
+
+        int p0Index = GetScaleIndex(animationTime);
+        int p1Index = p0Index + 1;
+        float scaleFactor = GetScaleFactor(m_Scales[p0Index].timeStamp,
+            m_Scales[p1Index].timeStamp, animationTime);
+        glm::vec3 finalScale = glm::mix(m_Scales[p0Index].scale, m_Scales[p1Index].scale
+            , scaleFactor);
+        return glm::scale(glm::mat4(1.0f), finalScale);
+    }
+};
+
+struct AssimpNodeData
+{
+    glm::mat4 transformation = glm::mat4(1.0f);
+    std::string name;
+    int childrenCount = 0;
+    std::vector<AssimpNodeData> children;
+};
+
+class Animation
+{
+public:
+    float m_Duration;
+    int m_TicksPerSecond;
+    std::vector<Bone> m_Bones;
+    AssimpNodeData m_RootNode;
+    std::map<std::string, BoneInfo> m_BoneInfoMap;
+
+    Animation(std::shared_ptr<Model> model, aiScene* scene, aiAnimation* animation)
+    {
+        m_Duration = animation->mDuration;
+        m_TicksPerSecond = animation->mTicksPerSecond;
+        ReadHeirarchyData(m_RootNode, scene->mRootNode);
+        ReadMissingBones(animation, model);
+    }
+
+    Bone* FindBone(const std::string& name)
+    {
+        auto iter = std::find_if(m_Bones.begin(), m_Bones.end(),
+            [&](const Bone& Bone)
+            {
+                return Bone.m_Name == name;
+            }
+        );
+        if (iter == m_Bones.end()) return nullptr;
+        else return &(*iter);
+    }
+
+
+    inline float GetTicksPerSecond() { return m_TicksPerSecond; }
+
+    inline float GetDuration() { return m_Duration; }
+
+    inline const AssimpNodeData& GetRootNode() { return m_RootNode; }
+
+    inline const std::map<std::string, BoneInfo>& GetBoneIDMap()
+    {
+        return m_BoneInfoMap;
+    }
+
+
+    void ReadMissingBones(const aiAnimation* animation, std::shared_ptr<Model> model);
+
+    void ReadHeirarchyData(AssimpNodeData& dest, const aiNode* src);
+};
+
+class Animator
+{
+public:
+    std::vector<glm::mat4> m_FinalBoneMatrices;
+    std::weak_ptr<Animation> m_CurrentAnimation;
+    float m_CurrentTime;
+    float m_DeltaTime;
+
+    bool isLoop = false;
+    float animSpeedPer = 1.0f;
+    bool isPlay = false;
+
+    Animator(std::shared_ptr<Animation> animation);
+    Animator();
+    void Update(float dt);
+    void Play();
+    void Stop();
+    void Pause();
+    void Reset();
+
+    void SetAnimation(std::shared_ptr<Animation> pAnimation);
+    void CalculateBoneTransform(const AssimpNodeData* node, glm::mat4 parentTransform);
+
+    std::vector<glm::mat4> GetFinalBoneMatrices()
+    {
+        return m_FinalBoneMatrices;
+    }
+};
+
+Animator::Animator(std::shared_ptr<Animation> animation)
+{
+    SetAnimation(animation);
+    isPlay = true;
+    for (int i = m_FinalBoneMatrices.size(); i < BoneMaxCount; i++)
+        m_FinalBoneMatrices.push_back(glm::mat4(1.0f));
+}
+Animator::Animator()
+{
+    for (int i = m_FinalBoneMatrices.size(); i < BoneMaxCount; i++)
+        m_FinalBoneMatrices.push_back(glm::mat4(1.0f));
+    isPlay = false;
+}
+
+void Animator::Update(float dt)
+{
+    m_DeltaTime = dt * animSpeedPer;
+    if (auto animation = m_CurrentAnimation.lock())
+    {
+        m_CurrentTime += animation->GetTicksPerSecond() * dt;
+        if(isLoop)
+            m_CurrentTime = fmod(m_CurrentTime, animation->GetDuration());
+        else
+        {
+            m_CurrentTime = Min(m_CurrentTime, animation->GetDuration());
+            isPlay = false;
+        }
+        
+        CalculateBoneTransform(&animation->GetRootNode(), glm::mat4(1.0f));
+    }
+}
+
+void Animator::SetAnimation(std::shared_ptr<Animation> pAnimation)
+{
+    m_CurrentAnimation = pAnimation;
+    m_CurrentTime = 0.0f;
+    isPlay = true;
+}
+
+void Animator::Play()
+{
+    if (auto animation = m_CurrentAnimation.lock())
+        this->isPlay = true;
+    else
+        WarringLog() << "애니메이션이 없음\n";
+}
+void Animator::Pause()
+{
+    this->isPlay = false;
+}
+void Animator::Stop()
+{
+    this->isPlay = false;
+    this->m_CurrentTime = 0.0f;
+}
+void Animator::Reset()
+{
+    this->m_CurrentTime = 0.0f;
+}
+
+void Animator::CalculateBoneTransform(const AssimpNodeData* node, glm::mat4 parentTransform)
+{
+    std::string nodeName = node->name;
+    glm::mat4 nodeTransform = node->transformation;
+    if (auto animation = m_CurrentAnimation.lock())
+    {
+        Bone* Bone = animation->FindBone(nodeName);
+
+        if (Bone != nullptr)
+        {
+            Bone->Update(m_CurrentTime);
+            nodeTransform = Bone->GetLocalTransform();
+        }
+
+        glm::mat4 globalTransformation = parentTransform * nodeTransform;
+
+        auto boneInfoMap = animation->GetBoneIDMap();
+        if (boneInfoMap.find(nodeName) != boneInfoMap.end())
+        {
+            int index = boneInfoMap[nodeName].id;
+            glm::mat4 offset = boneInfoMap[nodeName].offset;
+            m_FinalBoneMatrices[index] = globalTransformation * offset;
+        }
+
+        for (int i = 0; i < node->childrenCount; i++)
+            CalculateBoneTransform(&node->children[i], globalTransformation);
+    }
+}
+
+void Animation::ReadMissingBones(const aiAnimation* animation, std::shared_ptr<Model> model)
+{
+    int size = animation->mNumChannels;
+
+    auto& boneInfoMap = model->boneInfoMap;//getting m_BoneInfoMap from Model class
+    int& boneCount = model->boneCounter; //getting the m_BoneCounter from Model class
+    //reading channels(bones engaged in an animation and their keyframes)
+    for (int i = 0; i < size; i++)
+    {
+        auto channel = animation->mChannels[i];
+        std::string boneName = channel->mNodeName.data;
+
+        if (boneInfoMap.find(boneName) == boneInfoMap.end())
+        {
+            boneInfoMap[boneName].id = boneCount;
+            boneCount++;
+        }
+        m_Bones.push_back(Bone(channel->mNodeName.data, boneInfoMap[channel->mNodeName.data].id, channel));
+    }
+    m_BoneInfoMap = boneInfoMap;
+}
+
+void Animation::ReadHeirarchyData(AssimpNodeData& dest, const aiNode* src)
+{
+    assert(src);
+
+    dest.name = src->mName.data;
+    dest.transformation = AssimpGLMHelpers::ConvertMatrixToGLMFormat(src->mTransformation);
+    dest.childrenCount = src->mNumChildren;
+
+    for (int i = 0; i < src->mNumChildren; i++)
+    {
+        AssimpNodeData newData;
+        ReadHeirarchyData(newData, src->mChildren[i]);
+        dest.children.push_back(newData);
+    }
+}
+
 
 class Mesh
 {
 public:
+    bool hasNormal = false;
+    bool hasTangent = false;
+    bool hasColors[8] = { false, false, false, false, false, false, false, false };
+    bool hasUVs[8] = { false, false, false, false, false, false, false, false };
+    bool hasBone = false;
+
     std::vector<MeshVertex> vertexs;
-    std::vector<unsigned int> indexs;
+    std::vector<std::vector<unsigned int>> faceAndindexs;
     std::vector<MeshTexture> textures;
-    Mesh processMesh(aiMesh* mesh, const aiScene* scene)
-    {
-        //mesh->
-    }
+
+    std::shared_ptr<ModelInfo2> processData();
 };
+
+
+
 
 class ShaderCode
 {
@@ -595,30 +970,7 @@ public:
         NormalLog(std::cerr, "Try", 1) << "Shader Code Delete - Memory Clear Path : " << path << "\n";
     }
 };
-/*
-class ShaderAttribute
-{
-public:
-    ShaderAttribute(const char* name, int location, int col, int row, unsigned int rawType, unsigned int type, unsigned int normalized)
-    {
-        this->name = name;
-        this->location = location;
-        this->col = col;
-        this->row = row;
-        this->rawType = rawType;
-        this->type = type;
-        this->normalized = normalized;
-    }
 
-    const char* name = nullptr;
-    int location = 1;
-    int col = 1;
-    int row = 1;
-    unsigned int rawType = GL_FLOAT;
-    unsigned int type = GL_FLOAT;
-    unsigned int normalized = GL_FALSE;
-};
-*/
 class Shader
 {
 public:
@@ -1014,13 +1366,13 @@ void UniformSegment::Bind()
         case GL_UNSIGNED_INT_VEC3:  glUniform3i(location, (unsigned int)data_vector_int.x, (unsigned int)data_vector_int.y, (unsigned int)data_vector_int.z); break;
         case GL_UNSIGNED_INT_VEC4:  glUniform4i(location, (unsigned int)data_vector_int.x, (unsigned int)data_vector_int.y, (unsigned int)data_vector_int.z, (unsigned int)data_vector_int.w); break;
         
-        case GL_TEXTURE_1D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
-        case GL_TEXTURE_1D_ARRAY:   glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_1D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_1D_ARRAY:   glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
         
-        case GL_TEXTURE_2D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
-        case GL_TEXTURE_2D_ARRAY:   glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_2D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_2D_ARRAY:   glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
 
-        case GL_TEXTURE_3D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
+        case GL_TEXTURE_3D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
 
         case GL_SAMPLER_1D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
         case GL_SAMPLER_2D:         glActiveTexture(GL_TEXTURE0 + data_vector_int.x); glBindTexture(GL_TEXTURE_2D, data_vector_int.x); glUniform1i(location, data_vector_int.x); break;
@@ -1553,15 +1905,18 @@ public:
     std::vector<ModelBufferData> renderBufferList;
     ModelBufferData indexBuffer = { nullptr, 0, 0, {} };
     std::vector<std::pair<int, unsigned int>> table_BufferID_To_VBO;
-    //std::vector<> 
-
+    
+    std::shared_ptr<UniformStorage> uniformStorage;
     Material* material = nullptr;
     ModelInfo2* modelData = nullptr;
 
     bool activeIndexRender = false;
 
+    float zSorting = 0;
+
     RenderData(Material* material, ModelInfo2* modelData)
     {
+        uniformStorage = std::shared_ptr<UniformStorage>(new UniformStorage());
         Blend(material, modelData);
     }
 
@@ -1725,7 +2080,50 @@ public:
         for (int i = 0; i < this->renderBufferList.size(); i++)
             SetVBO(this->renderBufferList[i]);
     }
+    void RenderingSetting()
+    {
+        if (material->para_zTest)
+        {
+            glEnable(GL_DEPTH_TEST);
+            glDepthFunc(material->para_zTestType);
 
+            if (material->para_zWrite)
+                glDepthMask(GL_TRUE);
+            else
+                glDepthMask(GL_FALSE);
+        }
+        else
+            glDisable(GL_DEPTH_TEST);
+        if (material->para_stencil)
+        {
+            glEnable(GL_STENCIL_TEST);
+            glStencilMask(material->para_stencilMask);
+            glStencilFunc(material->para_stencilType, 1, material->para_stencilMask);
+            glStencilOp(material->para_stencil_sfail, material->para_stencil_dpfail, material->para_stencil_dppass);
+        }
+        else
+            glDisable(GL_STENCIL_TEST);
+
+        if (material->para_culling)
+        {
+            glEnable(GL_CULL_FACE);
+            glCullFace(material->para_cullingFace);
+            glFrontFace(material->para_cullingCycle);
+        }
+        else
+            glDisable(GL_BLEND);
+
+        if (material->para_transparent)
+        {
+            glEnable(GL_BLEND);
+            glBlendFunc(material->para_nextAlpha, material->para_prevAlpha);
+        }
+        else
+            glDisable(GL_BLEND);
+
+
+        //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
     void RenderingArray()
     {
         this->material->shader->Bind();
@@ -1747,6 +2145,14 @@ public:
         {
             ErrorLog(std::cerr, "Error") << "Index Buffer가 존재하지 않는 Model을 Index 렌더링\n";
         }
+    }
+    void Rendering()
+    {
+        this->RenderingSetting();
+        if (this->activeIndexRender)
+            this->RenderingIndex();
+        else
+            this->RenderingArray();
     }
 
     void Destroy()
@@ -1938,6 +2344,238 @@ public:
     }
 };
 
+std::shared_ptr<Model> Model::processModel(std::shared_ptr<aiScene> scene)
+{
+    std::shared_ptr<Model> model = std::shared_ptr<Model>(new Model());
+    std::vector<std::shared_ptr<Mesh>> meshList;
+    std::vector<std::shared_ptr<Animation>> animationList;
+
+    for (int i = 0; i < scene->mNumMeshes; i++)
+    {
+        auto mesh = scene->mMeshes[i];
+        std::shared_ptr<Mesh> meshData = std::shared_ptr<Mesh>(new Mesh());
+        meshList.push_back(meshData);
+
+        // Init
+        meshData->hasNormal = mesh->HasNormals();
+        meshData->hasTangent = mesh->HasTangentsAndBitangents();
+        for (int k = 0; k < 8; k++)
+            meshData->hasColors[k] = mesh->HasVertexColors(k);
+        for (int k = 0; k < 8; k++)
+            meshData->hasUVs[k] = mesh->HasTextureCoords(k);
+        meshData->hasBone = mesh->HasBones();
+
+        // Vertex
+        for (int j = 0; j < mesh->mNumVertices; j++)
+        {
+            MeshVertex vertex = {};
+
+            vertex.pos = glm::vec3(mesh->mVertices[j].x, mesh->mVertices[j].y, mesh->mVertices[j].z);
+            if (meshData->hasNormal)
+                vertex.normal = glm::vec3(mesh->mNormals[j].x, mesh->mNormals[j].y, mesh->mNormals[j].z);
+            if (meshData->hasTangent)
+                vertex.tangent = glm::vec3(mesh->mTangents[j].x, mesh->mTangents[j].y, mesh->mTangents[j].z);
+            for (int k = 0; k < 8; k++)
+                if (meshData->hasColors[k])
+                {
+                    vertex.colors[k] = glm::vec4(
+                        mesh->mColors[k][j].r,
+                        mesh->mColors[k][j].g,
+                        mesh->mColors[k][j].b,
+                        mesh->mColors[k][j].a);
+                    vertex.colorCount++;
+                }
+            for (int k = 0; k < 8; k++)
+                if (meshData->hasUVs[k])
+                {
+                    vertex.uvs[k] = glm::vec2(
+                        mesh->mTextureCoords[k][j].x,
+                        mesh->mTextureCoords[k][j].y);
+                    vertex.uvCount++;
+                }
+            meshData->vertexs.push_back(vertex);
+        }
+
+        // Index
+        for (int j = 0; j < mesh->mNumFaces; j++)
+        {
+            meshData->faceAndindexs.push_back({});
+            for (int k = 0; k < mesh->mFaces[j].mNumIndices; k++)
+                meshData->faceAndindexs[j].push_back(mesh->mFaces[j].mIndices[k]);
+        }
+
+        // Index
+        if (meshData->hasBone)
+        {
+            //std::cout << "매쉬당 본 갯수 : " << mesh->mNumBones << "\n";
+            for (int j = 0; j < mesh->mNumBones; j++)
+            {
+                auto nowBone = mesh->mBones[j];
+                int boneID = model->GetBoneID(nowBone);
+
+                if (boneID != -1 && nowBone->mNumWeights == 0)
+                {
+                    //meshData->targetBoneId = boneID;
+                    for (int k = 0; k < meshData->vertexs.size(); k++)
+                    {
+                        for (int n = 0; n < BoneMax; n++)
+                        {
+                            if (meshData->vertexs[k].boneIds[n] == -1)
+                            {
+                                meshData->vertexs[k].boneIds[n] = boneID;
+                                meshData->vertexs[k].boneWeights[n] = 1.0f;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                for (int k = 0; k < nowBone->mNumWeights; k++)
+                {
+                    auto weightData = nowBone->mWeights[k];
+
+                    auto weight = weightData.mWeight;
+                    auto vertexId = weightData.mVertexId;
+                    for (int n = 0; n < BoneMax; n++)
+                    {
+                        if (meshData->vertexs[vertexId].boneIds[n] == -1)
+                        {
+
+                            meshData->vertexs[vertexId].boneIds[n] = boneID;
+                            meshData->vertexs[vertexId].boneWeights[n] = weight;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (int i = 0; i < scene->mNumAnimations; i++)
+    {
+        std::shared_ptr<Animation> nowAnim = std::shared_ptr<Animation>(new Animation(model, scene.get(), scene->mAnimations[i]));
+        animationList.push_back(nowAnim);
+    }
+
+    //return meshList;
+    model->meshList = meshList;
+    model->animationList = animationList;
+    return model;
+}
+
+std::shared_ptr<ModelInfo2> Mesh::processData()
+{
+    std::vector<unsigned int> meshIndexList;
+    std::vector<float> meshVertexList;
+
+    std::vector<AttributeSegment> attri = { {"positionOS", 3} };
+    if (hasNormal)
+        attri.push_back({ "normalOS", 3 });
+    if (hasTangent)
+        attri.push_back({ "tangent", 3 });
+    for (int k = 0; k < 8; k++)
+        if (hasColors[k])
+            attri.push_back({ ((std::string("vertexColor") + ((k == 0) ? std::string("") : std::to_string(k))).c_str()), 4 });
+    for (int k = 0; k < 8; k++)
+        if (hasUVs[k])
+            attri.push_back({ (std::string("uv") + std::to_string(k)).c_str(), 2 });
+    if (hasBone)
+    {
+        attri.push_back({ "boneIds", 4 });
+        attri.push_back({ "boneWeights", 4 });
+    }
+    //for (int k = 0; k < attri.size(); k++)
+    //    std::cout << attri[k].name << "\n";
+    //, { "normalOS", 3 }, { "tangent", 3 }, { "bitangent", 3 }, { "vertexColor", 4 }, { "uv0", 2 }, { "uv1", 2 }, { "uv2", 2 }, { "uv3", 2 }
+
+    for (int j = 0; j < (int)vertexs.size(); j++)
+    {
+        MeshVertex& vertex = vertexs[j];
+        meshVertexList.push_back(vertex.pos.x);
+        meshVertexList.push_back(vertex.pos.y); //이거 원상복구
+        meshVertexList.push_back(vertex.pos.z);
+
+        if (hasNormal)
+        {
+            meshVertexList.push_back(vertex.normal.x);
+            meshVertexList.push_back(vertex.normal.y); //이거 원상복구
+            meshVertexList.push_back(vertex.normal.z);
+        }
+
+        if (hasTangent)
+        {
+            meshVertexList.push_back(vertex.tangent.x);
+            meshVertexList.push_back(vertex.tangent.y);
+            meshVertexList.push_back(vertex.tangent.z);
+        }
+
+        for (int k = 0; k < 8; k++)
+            if (hasColors[k]) //meshs->mColors 버텍스컬러 여러개 필요하면 나중에 추가
+            {
+                auto color = vertex.colors[k];
+                meshVertexList.push_back(color.r);
+                meshVertexList.push_back(color.g);
+                meshVertexList.push_back(color.b);
+                meshVertexList.push_back(color.a);
+            }
+
+
+        for (int k = 0; k < 8; k++)
+        {
+            if (hasUVs[k])
+            {
+                auto uv = vertex.uvs[k];
+                meshVertexList.push_back(uv.x);
+                meshVertexList.push_back(uv.y);
+            }
+        }
+        if (hasBone)
+        {
+            auto ids = vertex.boneIds;
+            for (int k = 0; k < BoneMax; k++)
+                meshVertexList.push_back(ids[k]);
+            auto weights = vertex.boneWeights;
+            for (int k = 0; k < BoneMax; k++)
+                meshVertexList.push_back(weights[k]);
+        }
+    }
+    for (unsigned int j = 0; j < faceAndindexs.size(); ++j)
+    {
+        auto face = faceAndindexs[j];
+        for (int k = 0; k < face.size(); k++)
+            meshIndexList.push_back((unsigned int)face[k]);
+    }
+    auto meshVertexBuffer = new float[(int)meshVertexList.size()]();
+    auto meshIndexBuffer = new unsigned int[(int)meshIndexList.size()]();
+
+    int meshIndex = 0;
+    for (int i = 0; i < (int)meshVertexList.size(); i++)
+        meshVertexBuffer[meshIndex++] = meshVertexList[i];
+    meshIndex = 0;
+    for (int i = 0; i < (int)meshIndexList.size(); i++)
+        meshIndexBuffer[meshIndex++] = meshIndexList[i];
+
+
+    std::shared_ptr<ModelInfo2> modelData = std::shared_ptr<ModelInfo2>(new ModelInfo2({
+        { std::shared_ptr<void>(meshVertexBuffer), (int)(meshVertexList.size()), GL_FLOAT, {
+            attri
+        }},
+        { std::shared_ptr<void>(meshIndexBuffer), (int)(meshIndexList.size()), GL_UNSIGNED_INT, {{"vertexIndex", 1}}}
+        }));
+    return modelData;
+}
+
+std::vector<std::shared_ptr<ModelInfo2>> Loader::ConvertModelToModelDatas(std::shared_ptr<Model> model, std::shared_ptr<aiScene> aiScene)
+{
+    std::vector<std::shared_ptr<ModelInfo2>> modelList;
+
+    std::vector<std::shared_ptr<Mesh>> meshList = model->meshList;
+    for (int i = 0; i < meshList.size(); i++)
+        modelList.push_back(meshList[i]->processData());
+    return modelList;
+}
+
+
 
 Material::Material(Shader* shader)
 {
@@ -1949,23 +2587,6 @@ void Material::SetShader(Shader* shader)
     this->shader = shader;
 }
 
-unsigned int drawType = GL_TRIANGLES;
-void Material::IndexRender(ModelInfo* model)
-{
-    glDrawElements(drawType, model->indexCount, GL_UNSIGNED_INT, 0);
-}
-
-void Material::ArrayRender(ModelInfo* model)
-{
-    glDrawArrays(drawType, 0, model->arrayCount);
-}
-
-Material* Material::Render(ModelInfo* model)
-{
-    this->SetShader(model->SetShaderConnect(shader));
-    this->shader->Bind();
-    return this;
-}
 
 
 ShaderCode LoadShader(const char* path)
@@ -2121,130 +2742,35 @@ unsigned int LoadTextureImage(const char* imageDir)
 }
 
 
-
-
 #pragma endregion
 
-class GameObject;
-class Component;
-class Transform;
-class World;
-class CorePipeline;
-
-class CorePipeline
-{
-public:
-    static bool isGameExit;
-
-    static bool targetFrameLock;
-    static float targetFrame;
-    static float targetFrameBetween;
-    static float deltaTime;
-    static float totalTime;
-    static std::chrono::steady_clock::time_point updatePrevClock;
-    static std::chrono::steady_clock::time_point updateNowClock;
-
-    void GameExit()
-    {
-        glutLeaveMainLoop();
-        isGameExit = true;
-    }
-};
-
-bool CorePipeline::isGameExit = false;
-bool CorePipeline::targetFrameLock = true;
-float CorePipeline::targetFrame = 165;
-float CorePipeline::targetFrameBetween = ((float)1000) / CorePipeline::targetFrame;
-float CorePipeline::totalTime = 0;
-float CorePipeline::deltaTime = 1 / CorePipeline::targetFrame;
-std::chrono::steady_clock::time_point CorePipeline::updatePrevClock;
-std::chrono::steady_clock::time_point CorePipeline::updateNowClock;
-
-class World
-{
-public:
-    std::vector<std::shared_ptr<GameObject>> gameObjectList;
-    std::shared_ptr<UniformStorage> uniformStorage;
-
-    World();
-
-    std::weak_ptr<GameObject> CreateGameObject();
-    bool AddGameObject(std::shared_ptr<GameObject> gameObject);
-    void WorldUpdate();
-    void WorldRender();
-};
-
-class GameObject : public std::enable_shared_from_this<GameObject>
-{
-public:
-    bool activePrev = false;
-    bool active = true;
-    bool destroy = false;
-
-    std::weak_ptr<GameObject> parent;
-    std::vector<std::weak_ptr<GameObject>> childs;
-
-    std::weak_ptr<Transform> transform;
-    std::vector<std::shared_ptr<Component>> componentList;
-
-    GameObject();
-    template <class T>
-    std::weak_ptr<T> AddComponent(T* component);
-    template <class T>
-    std::weak_ptr<T> GetComponent();
-    template <class T>
-    bool RemoveComponent(T* element);
-    bool RemoveAtComponent(int index);
-    template <class T>
-    void DestroyComponent(T* element);
-    void ClearComponent();
-    
-    bool SetParent(std::weak_ptr<GameObject> parent);
-    void AddChild(GameObject* child);
-
-
-    virtual void Create();
-    virtual void Start();
-    virtual void Update();
-    virtual void LateUpdate();
-    virtual void PostBehavior();
-    virtual void Enable();
-    virtual void Disable();
-    virtual void BeforeRender();
-};
 
 //template<> bool GameObject::RemoveComponent(std::weak_ptr<Component> element);
 //template<> std::weak_ptr<Component> GameObject::AddComponent(Component* element);
 //template<> std::weak_ptr<Component> GameObject::GetComponent();
 //template<> void GameObject::DestroyComponent(std::weak_ptr<Component> element);
 
-class Component
-{
-public:
-    bool activePrev = false;
-    bool active = true;
-    bool destroy = false;
-    bool isFirstUpdate = true;
-    std::weak_ptr<GameObject> gameObject;
-    virtual void Create() {}
-    virtual void Start() {  }
-    virtual void Update() {  }
-    virtual void LateUpdate() {  } //this->destroy = true;
-    virtual void Destroy() {  }
-    virtual void Enable() {  }
-    virtual void Disable() {  }
-    virtual void BeforeRender() {  }
-};
 
 World::World()
 {
     uniformStorage = std::shared_ptr<UniformStorage>(new UniformStorage());
 }
 
+
+void World::Init()
+{
+    this->mainCameraObject = this->CreateGameObject("mainCamera");
+    this->mainCamera = this->mainCameraObject.lock()->AddComponent<Camera>(new Camera());
+}
+
 std::weak_ptr<GameObject> World::CreateGameObject()
 {
+    return this->CreateGameObject("object");
+}
+std::weak_ptr<GameObject> World::CreateGameObject(const char* name)
+{
     std::shared_ptr<GameObject> gameObject;
-    this->AddGameObject(gameObject = std::shared_ptr<GameObject>(new GameObject()));
+    this->AddGameObject(gameObject = std::shared_ptr<GameObject>(new GameObject((char*)name)));
     gameObject->Create();
     return gameObject;
 }
@@ -2255,6 +2781,7 @@ bool World::AddGameObject(std::shared_ptr<GameObject> gameObject)
         if (gameObjectList[i] == gameObject)
             return false;
     gameObjectList.push_back(gameObject);
+    gameObject->world = shared_from_this();
     return true;
 }
 void World::WorldUpdate()
@@ -2277,73 +2804,96 @@ void World::WorldUpdate()
 }
 void World::WorldRender()
 {
+    renderingList.clear();
     for (int i = 0; i < gameObjectList.size(); i++)
         gameObjectList[i]->BeforeRender();
+    std::sort(renderingList.begin(), renderingList.end(), [](const std::shared_ptr<RenderData>& a, const std::shared_ptr<RenderData>& b)
+        {
+            float aWeight = a->zSorting + 10000 * (a->material->para_transparent ? 1 : 0);
+            float bWeight = b->zSorting + 10000 * (b->material->para_transparent ? 1 : 0);
+            return aWeight < bWeight;
+        });
+    for (int i = 0; i < renderingList.size(); i++)
+    {
+        std::shared_ptr<RenderData> renderData = renderingList[i];
+        Shader* nowShader = renderData->material->shader;
+        std::shared_ptr<UniformStorage> shaderUniformStorage = nowShader->uniformStorage;
+        
+        nowShader->Bind();
+        shaderUniformStorage->UpdateUniforms(*uniformStorage.get());
+        shaderUniformStorage->UpdateUniforms(*renderData->uniformStorage.get());
+        shaderUniformStorage->UpdateUniforms(*renderData->material->uniformStorage.get());
+        for (int j = 0; j < shaderUniformStorage->uniformList.size(); j++)
+            shaderUniformStorage->uniformList[j].Bind();
+        renderData->Rendering();
+    }
 }
 
-class Transform : public Component, public std::enable_shared_from_this<Transform>
+
+glm::mat4 Transform::GetModelToWorld()
 {
-private:
-    glm::vec3 positionPrev = glm::vec3(1234.5678f, 1234.5678f, 1234.5678f);
-    glm::vec3 rotationPrev = glm::vec3(1234.5678f, 1234.5678f, 1234.5678f);
-    glm::vec3 scalePrev = glm::vec3(1234.5678f, 1234.5678f, 1234.5678f);
-    glm::mat4 TRSCache = glm::mat4(1);
-public:
-    glm::vec3 position = glm::vec3(0, 0, 0);
-    glm::vec3 rotation = glm::vec3(0, 0, 0);
-    glm::vec3 scale = glm::vec3(0, 0, 0);
+    if (positionPrev.x != position.x || positionPrev.y != position.y || positionPrev.z != position.z ||
+        rotationPrev.x != rotation.x || rotationPrev.y != rotation.y || rotationPrev.z != rotation.z ||
+        scalePrev.x != scale.x || scalePrev.y != scale.y || scalePrev.z != scale.z)
+    {
+        TRSCache = glm::mat4(1);
+        TRSCache = glm::translate(TRSCache, this->position);
+        TRSCache = glm::rotate(TRSCache, this->rotation.y, glm::vec3(0, 1, 0));
+        TRSCache = glm::rotate(TRSCache, this->rotation.x, glm::vec3(1, 0, 0));
+        TRSCache = glm::rotate(TRSCache, this->rotation.z, glm::vec3(0, 0, 1));
+        TRSCache = glm::scale(TRSCache, this->scale);
 
-    glm::mat4 GetModelToWorld()
-    {
-        if (positionPrev.x == position.x || positionPrev.y == position.y || positionPrev.z == position.z ||
-            rotationPrev.x == rotation.x || rotationPrev.y == rotation.y || rotationPrev.z == rotation.z ||
-            scalePrev.x == scale.x || scalePrev.y == scale.y || scalePrev.z == scale.z)
-        {
-            TRSCache = glm::mat4(1);
-            TRSCache = glm::translate(TRSCache, this->position);
-            TRSCache = glm::rotate(TRSCache, this->rotation.y, glm::vec3(0, 1, 0));
-            TRSCache = glm::rotate(TRSCache, this->rotation.x, glm::vec3(1, 0, 0));
-            TRSCache = glm::rotate(TRSCache, this->rotation.z, glm::vec3(0, 0, 1));
-            TRSCache = glm::scale(TRSCache, this->scale);
-        }
-        return TRSCache;
+        this->positionPrev = this->position;
+        this->rotationPrev = this->rotation;
+        this->scalePrev = this->scale;
     }
-    glm::mat4 GetWorldToModel()
-    {
-        return glm::inverse(TRSCache);
-    }
+    return TRSCache;
+}
+glm::mat4 Transform::GetWorldToModel()
+{
+    return glm::inverse(TRSCache);
+}
 
-    glm::mat4&& GetModelToWorldAll()
+glm::mat4&& Transform::GetModelToWorldAll()
+{
+    auto tempNow = this;
+    auto TotalTRS = glm::mat4(1);
+    while (tempNow != nullptr)
     {
-        auto tempNow = this;
-        auto TotalTRS = glm::mat4(1);
-        while (tempNow != nullptr)
+        if (!tempNow->gameObject.expired())
         {
-            if (!tempNow->gameObject.expired())
+            TotalTRS = tempNow->GetModelToWorld() * TotalTRS;
+            if ((!tempNow->gameObject.lock()->parent.expired()) && (!tempNow->gameObject.lock()->parent.lock()->transform.expired()))
             {
-                TotalTRS = TotalTRS * tempNow->GetModelToWorld();
-                if ((!tempNow->gameObject.lock()->parent.expired()) && (!tempNow->gameObject.lock()->parent.lock()->transform.expired()))
-                {
-                    tempNow = tempNow->gameObject.lock()->parent.lock()->transform.lock().get();
-                }
-                else
-                    tempNow = nullptr;
+                tempNow = tempNow->gameObject.lock()->parent.lock()->transform.lock().get();
             }
             else
                 tempNow = nullptr;
         }
-        return std::move(TotalTRS);
+        else
+            tempNow = nullptr;
     }
-    glm::mat4&& GetWorldToModelAll()
-    {
-        return glm::inverse(this->GetModelToWorldAll());
-    }
-};
+    return std::move(TotalTRS);
+}
+glm::mat4&& Transform::GetWorldToModelAll()
+{
+    return glm::inverse(this->GetModelToWorldAll());
+}
+
 
 
 GameObject::GameObject()
 {
     active = true;
+    this->name = std::shared_ptr<char>(new char[7]{'o','b','j','e','c','t', 0});
+}
+GameObject::GameObject(char* name)
+{
+    active = true;
+    int nameLength = strlen(name);
+    char* tempName;
+    strncpy((tempName = new char[nameLength + 1]()), name, nameLength);
+    this->name = std::shared_ptr<char>(tempName);
 }
 
 void GameObject::Create()
@@ -2593,8 +3143,106 @@ bool GameObject::SetParent(std::weak_ptr<GameObject> parent)
     return true;
 }
 
-int windowX = 1280;
-int windowY = 720;
+
+
+void Camera::BeforeRender()
+{
+    glm::vec4 worldForward = this->gameObject.lock()->transform.lock()->GetModelToWorldAll() * glm::vec4(0, 0, 1, 0);
+    this->aspect = CorePipeline::screenW / CorePipeline::screenH;
+
+    auto viewMatrix = glm::lookAt(this->gameObject.lock()->transform.lock()->position, this->gameObject.lock()->transform.lock()->position + glm::vec3(worldForward), glm::vec3(0, 1.0f, 0));
+    auto projectionMatrix = glm::perspective(fovy * D2R, this->aspect, nearValue, farValue);
+
+    this->gameObject.lock()->world.lock()->uniformStorage->PushUniform(UniformSegment("matrix_View", GL_FLOAT_MAT4).SetData(viewMatrix));
+    this->gameObject.lock()->world.lock()->uniformStorage->PushUniform(UniformSegment("matrix_Projection", GL_FLOAT_MAT4).SetData(projectionMatrix));
+    this->gameObject.lock()->world.lock()->uniformStorage->PushUniform(UniformSegment("matrix_ViewProjection", GL_FLOAT_MAT4).SetData(projectionMatrix * viewMatrix));
+}
+
+
+void ModelRenderer::AddRenderData(RenderData* renderData)
+{
+    int index = -1;
+    for (int i = 0; i < this->renderDataList.size(); i++)
+        if (this->renderDataList[i]->material == renderData->material &&
+            this->renderDataList[i]->modelData == renderData->modelData)
+            index = i;
+    if(index == -1)
+        this->renderDataList.push_back(std::shared_ptr<RenderData>(renderData));
+}
+void ModelRenderer::AddRenderData(std::shared_ptr<RenderData> renderData)
+{
+    int index = -1;
+    for (int i = 0; i < this->renderDataList.size(); i++)
+        if (this->renderDataList[i]->material == renderData->material &&
+            this->renderDataList[i]->modelData == renderData->modelData)
+            index = i;
+    if (index == -1)
+        this->renderDataList.push_back(renderData);
+}
+void ModelRenderer::AddModel(ModelInfo2* modelInfo)
+{
+    for (int i = 0; i < this->materialList.size(); i++)
+    {
+        auto renderData = std::shared_ptr<RenderData>(new RenderData(this->materialList[i], modelInfo));
+        this->renderDataList.push_back(renderData);
+    }
+    this->modelList.push_back(modelInfo);
+}
+void ModelRenderer::AddMaterial(Material* material)
+{
+    for (int i = 0; i < this->modelList.size(); i++)
+    {
+        auto renderData = std::shared_ptr<RenderData>(new RenderData(material, this->modelList[i]));
+        this->renderDataList.push_back(renderData);
+    }
+    this->materialList.push_back(material);
+}
+void ModelRenderer::AddMaterialModel(Material* material, ModelInfo2* modelInfo)
+{
+    this->AddMaterial(material);
+    this->AddModel(modelInfo);
+}
+void ModelRenderer::BeforeRender()
+{
+    for (int i = 0; i < this->renderDataList.size(); i++)
+    {
+        std::shared_ptr<RenderData> nowRenderData = this->renderDataList[i];
+        nowRenderData->uniformStorage->PushUniform(UniformSegment("matrix_ModelToWorld", GL_FLOAT_MAT4).SetData(this->gameObject.lock()->transform.lock()->GetModelToWorldAll()));
+        //nowRenderData->material->uniformStorage->PushUniform(UniformSegment("matrix_ModelToWorld", GL_FLOAT_MAT4).SetData(this->gameObject.lock()->transform.lock()->GetModelToWorldAll()));
+        //this->renderData->material->uniformStorage->PushUniform(UniformSegment("_MainLightDirection", GL_FLOAT_VEC3).SetData(glm::normalize(glm::vec3(light->transform.lock()->position) - glm::vec3(this->gameObject.lock()->transform.lock()->position))));
+        //this->renderData->material->uniformStorage->PushUniform(UniformSegment("_ViewDirection", GL_FLOAT_VEC3).SetData(glm::normalize(cameraPos - this->gameObject.lock()->transform.lock()->position)));
+        //this->renderData->material->uniformStorage->PushUniform(UniformSegment("MainLightPower", GL_FLOAT).SetData(lightPow));
+        gameObject.lock()->world.lock()->renderingList.push_back(nowRenderData);
+    }
+}
+
+void CameraControl::Start()
+{
+    offsetPosition = glm::vec3(0, 1.0f, 0);
+    offsetDistance = 3.0f;
+}
+
+void CameraControl::Update()
+{
+    if (auto target = targetObject.lock())
+    {
+        targetPosition = target->transform.lock()->position;
+    }
+
+    glm::vec3 finalTargetPosition = targetPosition + offsetPosition;
+    glm::vec3 finalDirection = glm::vec3(
+        cos(directionAngle.y) * cos(directionAngle.x),
+        sin(directionAngle.x),
+        sin(directionAngle.y) * cos(directionAngle.x));
+    finalDirection = glm::normalize(finalDirection) * offsetDistance;
+    //directionAngle.y += 0.01f;
+    this->gameObject.lock()->transform.lock()->position = finalTargetPosition + finalDirection;
+    glm::vec3 angle = glm::eulerAngles(glm::quatLookAtRH(glm::normalize(-finalDirection), glm::vec3(0, 1, 0)));
+    
+    directionAngle.y += 0.01f;
+    this->gameObject.lock()->transform.lock()->rotation = glm::vec3(directionAngle.x,
+        -directionAngle.y - 90 * D2R, 0);// * D2R
+}
 
 
 GLvoid drawScene(GLvoid);
@@ -2612,6 +3260,7 @@ void Keyboard(int key, bool spec, int state, int x, int y);
 
 //----new system----
 Shader testShader;
+Shader animShader;
 ModelInfo* testModel;
 Material* testMaterial;
 RenderData* testRenderData;
@@ -2626,52 +3275,20 @@ unsigned int testIndexs[6] = { 0, 3, 2,
 
 std::vector<RenderData*> klee;
 
-
-int frameCount = 0;
-float frameTotal = 0;
-int frame[100];
-std::chrono::steady_clock::time_point frameStartCheck;
-std::chrono::steady_clock::time_point frameCheck[100];
-void FrameInit(int count)
-{
-    frameCount = count;
-    for (int i = 0; i < frameCount; i++)
-    {
-        frame[i] = -1;
-        frameCheck[i] = std::chrono::steady_clock::now();
-    }
-    frameStartCheck = std::chrono::steady_clock::now();
-}
-void FrameUpdate()
-{
-    float tempFrameTotal = 0;
-    for (int i = 0; i < frameCount; i++)
-    {
-        if (frame[i] != -1 || (frame[i] == -1 && std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - frameStartCheck).count() >= ((1000000.0f / frameCount) * i)))
-        {
-            auto now = std::chrono::steady_clock::now();
-            if (frame[i] == -1)
-                frameCheck[i] = now;
-            if (std::chrono::duration_cast<std::chrono::microseconds>(now - frameCheck[i]).count() >= 1000000)
-            {
-                float weight = 1/((float)frameCount * 2.0f);
-                frameTotal = (frameTotal * (1 - weight) + frame[i] * weight);
-                frameCheck[i] = now;
-                frame[i] = 0;
-            }
-            frame[i]++;
-        }
-    }
-}
+std::shared_ptr<Animator> animator;
+std::shared_ptr<Model> model;
 
 
-static bool show_demo_window = true;
-static bool show_another_window = false;
-static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+std::shared_ptr<World> world;
 
-World world;
+std::shared_ptr<GameObject> A;
+std::shared_ptr<GameObject> B;
+std::shared_ptr<GameObject> C;
+
 float mouseX = 0;
-float angle = 0;
+float mouseY = 0;
+float angleX = 0;
+float angleY = 0;
 bool pushZ = false;
 
 int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정 { //--- 윈도우 생성하기
@@ -2680,6 +3297,9 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     SetConsoleTitle(L"콘솔");
     std::cout.setf(std::ios::right);
 
+    timeBeginPeriod(1);
+    SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
 
     glutInit(&argc, argv); // glut 초기화
 #ifdef __FREEGLUT_EXT_H__
@@ -2687,7 +3307,8 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
 #endif
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_MULTISAMPLE | GLUT_DEPTH); // 디스플레이 모드 설정
     glutInitWindowPosition(310, 180); // 윈도우의 위치 지정
-    glutInitWindowSize(windowX, windowY); // 윈도우의 크기 지정
+    glutInitWindowSize(CorePipeline::screenW, CorePipeline::screenH); // 윈도우의 크기 지정
+    //glutFullScreen();
     glutCreateWindow("GLEW_1"); // 윈도우 생성
 
     glewExperimental = GL_TRUE;
@@ -2699,13 +3320,6 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     else
         NormalLog(std::cerr, "Log") << "GLEW Init Completed\n";
     splitLine();
-
-
-    
-    
-    timeBeginPeriod(1);
-    SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
-    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
 
     //----------------------------------------------------
 
@@ -2719,10 +3333,16 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     testShader = CreateShaderProgram(
         CompileShader(LoadShader("./Shaders/gl_vertex.glsl"), GL_VERTEX_SHADER),
         CompileShader(LoadShader("./Shaders/gl_fragment.glsl"), GL_FRAGMENT_SHADER));
-    //testShader.SetAttribute("positionOS", 4, 1, GL_FLOAT_VEC4, GL_FLOAT, GL_FALSE);
-    //testShader.SetAttribute("vertexColor", 4, 1, GL_FLOAT_VEC4, GL_FLOAT, GL_FALSE);
+    
+    animShader = CreateShaderProgram(
+        CompileShader(LoadShader("./Shaders/gl_Anim_vertex.glsl"), GL_VERTEX_SHADER),
+        CompileShader(LoadShader("./Shaders/gl_Anim_fragment.glsl"), GL_FRAGMENT_SHADER));
+
     splitLine();
 
+
+    world = std::shared_ptr<World>(new World());
+    world->Init();
     /*
     uniform mat4 matM;
     uniform mat4 matrix_ModelToWorld; // model -> world
@@ -2731,35 +3351,20 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     uniform mat4 matrix_View; // world -> view
     uniform mat4 matrix_Projection; // view -> clip
     */
-    testMaterial = new Material(&testShader);
+    int textureId = (int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Hair_Diffuse.png");
+    testMaterial = new Material(&animShader);
     testMaterial->drawType = GL_TRIANGLES;
-    testMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Hair_Diffuse.png")));
+    testMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData(textureId));
 
-    auto testBodyMaterial = new Material(&testShader);
+    auto testBodyMaterial = new Material(&animShader);
     testBodyMaterial->drawType = GL_TRIANGLES;
     testBodyMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Body_Diffuse.png")));
     
-    auto testFaceMaterial = new Material(&testShader);
+    auto testFaceMaterial = new Material(&animShader);
     testFaceMaterial->drawType = GL_TRIANGLES;
     testFaceMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Face_Diffuse.png")));
 
-    /* 방법 1.
-    float testPosition[16] = { 0, 0, 0, 1,
-               0.5, 0, 0, 1,
-               0.5, -0.5, 0, 1,
-               0, -0.5, 0, 1 };
-    float testVertexColor[16] = { 0, 1, 0, 1,s
-                1, 1, 0, 1,
-                1, 0, 0, 1,
-                0, 0, 0, 1 };
-    unsigned int testIndexs[6] = { 0, 3, 2,
-                            0, 2, 1 };
-    testModel = new ModelInfo();
-    testModel->Init();
-    testModel->SetIndex(testIndexs, sizeof(testIndexs));
-    testModel->SetBufferData("positionOS", testPosition, sizeof(testPosition), 4 * sizeof(float), 0);
-    testModel->SetBufferData("vertexColor", testVertexColor, sizeof(testVertexColor), 4 * sizeof(float), 0);
-    */
+    
     Assimp::Importer importer;
     const aiScene* pScene = importer.ReadFile("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch.fbx",
         aiProcess_Triangulate |
@@ -2810,12 +3415,13 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     //testModel->SetBufferData("positionOS", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 0); // todo : 이부분 다시 체크 3* sizeof(float)로
     //testModel->SetBufferData("vertexColor", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 4 * sizeof(float));
 
-
+    /*
     float* meshVertexBuffer;
     unsigned int* meshIndexBuffer;
     std::vector<unsigned int> meshIndexList;
     std::vector<float> meshVertexList;
 
+    A = world->CreateGameObject().lock();
     for (int k = 0; k < pScene->mNumMeshes; k++)//pScene->mNumMeshes
     {
         for (unsigned int i = 0; i < pScene->mMeshes[k]->mNumVertices; ++i)
@@ -2851,13 +3457,22 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
             { std::shared_ptr<void>(meshIndexBuffer), (int)(meshIndexList.size()), GL_UNSIGNED_INT, {{"vertexIndex", 1}}}
             });
         if (k == 0)
-            klee.push_back(new RenderData(testMaterial, m));
+        {
+            auto modelRenderer1 = A->AddComponent<ModelRenderer>(new ModelRenderer);
+            modelRenderer1.lock()->AddMaterialModel(testMaterial, m);
+        }
         if (k == 1)
-            klee.push_back(new RenderData(testBodyMaterial, m));
+        {
+            auto modelRenderer1 = A->AddComponent<ModelRenderer>(new ModelRenderer);
+            modelRenderer1.lock()->AddMaterialModel(testBodyMaterial, m);
+        }
         //if (k == 5)
         //    klee.push_back(new RenderData(testFaceMaterial, m));
         if (k == 3 || k == 6 || k == 7)
-            klee.push_back(new RenderData(testFaceMaterial, m));
+        {
+            auto modelRenderer1 = A->AddComponent<ModelRenderer>(new ModelRenderer);
+            modelRenderer1.lock()->AddMaterialModel(testFaceMaterial, m);
+        }
         //else if (k == 4 || k == 5)
         //    klee.push_back(new RenderData(testFaceMaterial, m));
         //else
@@ -2865,154 +3480,37 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
         meshIndexList.clear();
         meshVertexList.clear();
     }
-    /*
-    auto vertexSize = 8 * 4 * 2;
-    auto indexSize = 12 * 3;
-    float* vertexBuffer = new float[vertexSize];
-    auto indexBuffer = new unsigned int[indexSize];
-    int index;
-    std::vector<glm::vec4> vertexList;
-    std::vector<glm::vec4> colorList;
-
-    //testModel = new ModelInfo();
-    //testModel->Init();
-    vertexList.push_back(glm::vec4(-0.5, -0.5, 0.5, 1));
-    vertexList.push_back(glm::vec4(0.5, -0.5, 0.5, 1));
-    vertexList.push_back(glm::vec4(-0.5, -0.5, -0.5, 1));
-    vertexList.push_back(glm::vec4(0.5, -0.5, -0.5, 1));
-    vertexList.push_back(glm::vec4(-0.5, 0.5, 0.5, 1));
-    vertexList.push_back(glm::vec4(0.5, 0.5, 0.5, 1));
-    vertexList.push_back(glm::vec4(-0.5, 0.5, -0.5, 1));
-    vertexList.push_back(glm::vec4(0.5, 0.5, -0.5, 1));
-
-    colorList.push_back(glm::vec4(1, 0, 0, 1));
-    colorList.push_back(glm::vec4(0, 1, 0, 1));
-    colorList.push_back(glm::vec4(0, 0, 1, 1));
-    colorList.push_back(glm::vec4(0, 1, 1, 1));
-    colorList.push_back(glm::vec4(1, 1, 0, 1));
-    colorList.push_back(glm::vec4(0, 0, 0, 1));
-    colorList.push_back(glm::vec4(1, 1, 1, 1));
-    colorList.push_back(glm::vec4(1, 0, 1, 1));
-
-    index = 0;
-    for (int i = 0; i < 8; i++)
-    {
-        for (int j = 0; j < 4; j++)
-            vertexBuffer[index++] = vertexList[i][j];
-        for (int j = 0; j < 4; j++)
-            vertexBuffer[index++] = colorList[i][j];
-    }
-
-    index = 0;
-    indexBuffer[index++] = 0;
-    indexBuffer[index++] = 1;
-    indexBuffer[index++] = 2;
-    indexBuffer[index++] = 2;
-    indexBuffer[index++] = 1;
-    indexBuffer[index++] = 3;
-
-    indexBuffer[index++] = 5;
-    indexBuffer[index++] = 7;
-    indexBuffer[index++] = 1;
-    indexBuffer[index++] = 7;
-    indexBuffer[index++] = 3;
-    indexBuffer[index++] = 1;
-
-    indexBuffer[index++] = 4;
-    indexBuffer[index++] = 5;
-    indexBuffer[index++] = 0;
-    indexBuffer[index++] = 5;
-    indexBuffer[index++] = 1;
-    indexBuffer[index++] = 0;
-
-    indexBuffer[index++] = 6;
-    indexBuffer[index++] = 4;
-    indexBuffer[index++] = 0;
-    indexBuffer[index++] = 6;
-    indexBuffer[index++] = 0;
-    indexBuffer[index++] = 2;
-
-    indexBuffer[index++] = 6;
-    indexBuffer[index++] = 2;
-    indexBuffer[index++] = 7;
-    indexBuffer[index++] = 7;
-    indexBuffer[index++] = 2;
-    indexBuffer[index++] = 3;
-
-    indexBuffer[index++] = 4;
-    indexBuffer[index++] = 6;
-    indexBuffer[index++] = 5;
-    indexBuffer[index++] = 5;
-    indexBuffer[index++] = 6;
-    indexBuffer[index++] = 7;
-
-    ModelInfo2* m2 = new ModelInfo2({
-            { std::shared_ptr<void>(vertexBuffer), vertexSize, GL_FLOAT, {{"positionOS", 4}, {"vertexColor", 4} } } ,
-            { std::shared_ptr<void>(indexBuffer), indexSize, GL_UNSIGNED_INT, {{"vertexIndex", 1}} }
-        });
-    */
-    std::shared_ptr<GameObject> A = world.CreateGameObject().lock();
-    std::shared_ptr<GameObject> B = world.CreateGameObject().lock();
-    A->SetParent(B);
-    B->SetParent(A);
-    //A->Update();
-    //B->Update();
-    //obj
-    /*
-    if (lines)
-    {
-        indexBuffer2 = new unsigned int[indexSize * 2];
-        for (int i = 0; i < indexSize; i += 3)
-        {
-            indexBuffer2[i * 2 + 0] = indexBuffer[i + 0];
-            indexBuffer2[i * 2 + 1] = indexBuffer[i + 1];
-
-            indexBuffer2[i * 2 + 2] = indexBuffer[i + 1];
-            indexBuffer2[i * 2 + 3] = indexBuffer[i + 2];
-
-            indexBuffer2[i * 2 + 4] = indexBuffer[i + 2];
-            indexBuffer2[i * 2 + 5] = indexBuffer[i + 0];
-        }
-        testModel->SetIndexBuffer(indexBuffer2, indexSize * 2 * sizeof(unsigned int));
-        testMaterial->drawType = GL_LINES;
-    }
     */
 
-    //m->datas.push_back({ new float[8](), 8, GL_FLOAT, {{"positionOS", 4}} });
-    /*
-    auto clean = ModelInfo2::GetFilteringBufferDatas(m.datas);
-    auto v = ModelInfo2::GetFilteringShaderBufferDatas(clean, &testShader);
 
-    std::cout << "\n";
-    std::cout << m.datas.size() << "\n";
-    for (int i = 0; i < m.datas.size(); i++)
+    Assimp::Importer aiImporter;
+    std::shared_ptr<aiScene> aiScene;
+    aiScene = Loader::ModelLoad("./Models/Anbi/Avatar_Female_Size02_Anbi.fbx", aiImporter);
+    model = Model::processModel(aiScene);
+    animator = std::shared_ptr<Animator>(new Animator(model->animationList[33]));
+    animator->Update(CorePipeline::deltaTime);
+
+    auto list = Loader::ConvertModelToModelDatas(model, aiScene);
+
+
+    C = world->CreateGameObject("Anbi").lock();
+    for (int i = 0; i < list.size(); i++)
     {
-        std::cout << "block\n";
-        for (int j = 0; j < m.datas[i].attributeInfos.size(); j++)
-            std::cout << m.datas[i].attributeInfos[j].name << ", " << &m.datas[i].attributeInfos[j].rawBuffer << ", " << m.datas[i].attributeInfos[j].type
-            << ", " << m.datas[i].attributeInfos[j].typeSize << ", " << m.datas[i].attributeInfos[j].offsetCount << ", " << m.datas[i].attributeInfos[j].blockCount << "\n";
+        B = world->CreateGameObject().lock();
+        auto modelRenderer1 = B->AddComponent<ModelRenderer>(new ModelRenderer);
+        Material* material = new Material(&animShader);
+        material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData(textureId));
+        modelRenderer1.lock()->AddMaterialModel(material, list[i].get());
+        B->transform.lock()->rotation = glm::vec3(0, 0, 0);
+        B->SetParent(C);
+        //if(list[i]->)
     }
 
-    std::cout << "\n";
-    std::cout << v.size()<<"\n";
-    for (int i = 0; i < v.size(); i++)
-    {
-        std::cout << "block\n";
-        for (int j = 0; j < v[i].attributeInfos.size(); j++)
-            std::cout << v[i].attributeInfos[j].name << ", " << &v[i].attributeInfos[j].rawBuffer << ", " << v[i].attributeInfos[j].type
-            << ", " << v[i].attributeInfos[j].typeSize << ", " << v[i].attributeInfos[j].offsetCount << ", " << v[i].attributeInfos[j].blockCount << "\n";
-    }
-    auto v2 = ModelInfo2::GetFilteringIndexBuffers(clean);
-    std::cout << v2[0].attributeInfos[0].name << "\n";
-    */
+    //world->mainCameraObject.lock()->transform.lock()->position = glm::vec3(0, 1.5, -2);
+    auto cameraControl = world->mainCameraObject.lock()->AddComponent<CameraControl>(new CameraControl());
+    
 
-    //testRenderData = new RenderData(testMaterial, m2);
-
-    //testRenderData->indexBuffer = ModelInfo2::GetConvertPolyToWireIndexBuffer(testRenderData->indexBuffer);
-    //testRenderData->renderBufferList = ModelInfo2::GetConvertIndexToArrayDataBuffers(testRenderData->indexBuffer, testRenderData->renderBufferList);
-    //testRenderData->indexBuffer = ModelInfo2::GetConvertSequenceIndexBuffers(testRenderData->indexBuffer);
-    //testRenderData->UpdateAll();
-    //testMaterial->drawType = GL_TRIANGLES;
+    ImGUIInit();
 
     glutDisplayFunc(drawScene); // 출력 함수의 지정
     glutReshapeFunc(Reshape); // 다시 그리기 함수 지정
@@ -3026,23 +3524,6 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     glutSpecialUpFunc(KeyboardSpecUp);
 
     glutTimerFunc(1, Update, 16);
-
-
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-
-    //ImGui::StyleColorsDark();
-    ImGui::StyleColorsLight();
-
-    ImGui_ImplGLUT_Init();
-    ImGui_ImplOpenGL3_Init();
-
-    //ImGui_ImplGLUT_InstallFuncs();
-
-    NormalLog(std::cerr, "Log") << "ImGUI 초기화 Completed\n";
-    splitLine();
 
     //----------------------------------------------------
 
@@ -3069,20 +3550,9 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
 
             CorePipeline::deltaTime = CorePipeline::totalTime / 1000.0f;
 
-            world.WorldUpdate();
-            world.WorldRender();
-            auto modelMatrix = glm::mat4(1.0f);
-            modelMatrix = glm::translate(modelMatrix, glm::vec3(0, 0, 0));
-            modelMatrix = glm::rotate(modelMatrix, angle * 2 * D2R, glm::vec3(0, 1, 0));
-            modelMatrix = glm::scale(modelMatrix, glm::vec3(1, 1, 1));
-            world.uniformStorage->PushUniform(UniformSegment("matrix_ModelToWorld", GL_FLOAT_MAT4).SetData(modelMatrix));
-
-
-            auto viewMatrix = glm::lookAt(glm::vec3(0,1.0f, pushZ ? -2 : -4), glm::vec3(0, 1, 0), glm::vec3(0, 1.0f, 0));
-            viewMatrix = glm::rotate(viewMatrix, 0.0f, glm::vec3(0, 0, 1));
-            auto projectionMatrix = glm::perspective(34.0f * D2R, (float)windowX / windowY, 0.03f, 100.0f);
-
-            world.uniformStorage->PushUniform(UniformSegment("matrix_ViewProjection", GL_FLOAT_MAT4).SetData(projectionMatrix * viewMatrix));
+            world->WorldUpdate();
+            animator->Update(CorePipeline::deltaTime);
+            //world->mainCameraObject.lock()->transform.lock()->rotation = glm::vec3(angleY * 1 * D2R, angleX * 1 * D2R, 0);
 
             glutPostRedisplay();
 
@@ -3095,57 +3565,27 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
         else std::this_thread::sleep_for(std::chrono::microseconds(10));
     }
 
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGLUT_Shutdown();
-    ImGui::DestroyContext();
 
-    //_CrtDumpMemoryLeaks();
+    ImGUIClose();
 
     return 0;
 }
 
 GLvoid drawScene()
 {
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGLUT_NewFrame();
-    ImGui::NewFrame();
-    ImGuiIO& io = ImGui::GetIO();
-    if (show_demo_window)
-        ImGui::ShowDemoWindow(&show_demo_window);
-    {
-        static float f = 0.0f;
-        static int counter = 0;
-
-        ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-        ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-        ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-        ImGui::Checkbox("Another Window", &show_another_window);
-
-        ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-        ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-        if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-            counter++;
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
-
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-        ImGui::End();
-    }
-    ImGui::Render(); // IMGUI에 누적시키는 기능인가봄.
-
+    ImGUIUpdate();
     //glClearColor(0.4f, 0.4f, 0.4f, 1.0f);
     glClearColor(clear_color.x, clear_color.y, clear_color.z, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // 설정된 색으로 전체를 칠하기
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT); // 설정된 색으로 전체를 칠하기
 
     
 
     glEnable(GL_DEPTH_TEST);
     testShader.Bind();
 
-    //glEnable(GL_CULL_FACE);
+    glEnable(GL_CULL_FACE);
     //glFrontFace(GL_BACK);
+
     /*
     auto location = glGetUniformLocation(testMaterial->shader->shaderID, "matM");
     if (location != -1)
@@ -3157,12 +3597,6 @@ GLvoid drawScene()
         modelMatrix = glm::scale(modelMatrix, glm::vec3(1, 1, 1));
         glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(modelMatrix));
     }
-    */
-    testMaterial->shader->uniformStorage->UpdateUniforms(*world.uniformStorage.get());
-
-    for (int i = 0; i < testMaterial->shader->uniformStorage->uniformList.size(); i++)
-        testMaterial->shader->uniformStorage->uniformList[i].Bind();
-    /*
     location = glGetUniformLocation(testShader.shaderID, "u_color");
     if (location != -1)
     {
@@ -3171,37 +3605,43 @@ GLvoid drawScene()
     }
 
     */
+
     //testMaterial->Render(testModel)->IndexRender(testModel);
     //Material(&testShader).Render(testModel)->ArrayRender(testModel);
     //testRenderData->RenderingArray();
-    
+    /*
     for (int i = 0; i < klee.size(); i++)
     {
         klee[i]->material->shader->Bind();
-        klee[i]->material->shader->uniformStorage->UpdateUniforms(*world.uniformStorage.get());
+        klee[i]->material->shader->uniformStorage->UpdateUniforms(*world->uniformStorage.get());
         klee[i]->material->shader->uniformStorage->UpdateUniforms(*klee[i]->material->uniformStorage.get());
-        //glActiveTexture(GL_TEXTURE0);
-        //glActiveTexture(GL_TEXTURE1);
-        //glActiveTexture(GL_TEXTURE2);
         for (int j = 0; j < klee[i]->material->shader->uniformStorage->uniformList.size(); j++)
-        {
             klee[i]->material->shader->uniformStorage->uniformList[j].Bind();
-        }
         klee[i]->RenderingIndex();
     }
+    */
     //testRenderData->RenderingIndex();
 
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    animShader.Bind();
+    auto transforms = animator->GetFinalBoneMatrices();
+    for (int i = 0; i < transforms.size(); ++i)
+        animShader.uniformStorage->PushUniform(UniformSegment(
+                ("finalBonesMatrices[" + std::to_string(i) + "]").c_str(),
+                GL_FLOAT_MAT4).SetData(transforms[i]));
+
+        //ourShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
+    world->WorldRender();
+    ImGUIRender();
+
     glutSwapBuffers(); // 화면에 출력하기
 }
 
 GLvoid Reshape(int w, int h) //--- 콜백 함수: 다시 그리기 콜백 함수
 {
     ImGui_ImplGLUT_ReshapeFunc(w, h);
-    glViewport(0, 0, w, h);
-    windowX = w;
-    windowY = h;
-    //glutPostRedisplay();
+    CorePipeline::screenW = w;
+    CorePipeline::screenH = h;
+    glViewport(0, 0, (int)CorePipeline::screenW, (int)CorePipeline::screenH);
 }
 
 void Update(int updateID)
@@ -3222,12 +3662,44 @@ void Keyboard(int key, bool spec, int state, int x, int y)
         specKey = key - 0xffff;
 
     switch (key) {
+    case 'q':
+        //keyUp = state == GLUT_DOWN ? 1 : 0;
+        if (state == GLUT_DOWN)
+        {
+            animator->SetAnimation(model->animationList[0]);
+            animator->Reset();
+            animator->Play();
+        }
+        break;
     case 'w':
         //keyUp = state == GLUT_DOWN ? 1 : 0;
         if (state == GLUT_DOWN)
-            pushZ = !pushZ;
+        {
+            animator->SetAnimation(model->animationList[1]);
+            animator->Reset();
+            animator->Play();
+        }
+        break;
+    case 'e':
+        //keyUp = state == GLUT_DOWN ? 1 : 0;
+        if (state == GLUT_DOWN)
+        {
+            animator->SetAnimation(model->animationList[4]);
+            animator->Reset();
+            animator->Play();
+        }
+        break;
+    case 'r':
+        //keyUp = state == GLUT_DOWN ? 1 : 0;
+        if (state == GLUT_DOWN)
+        {
+            animator->SetAnimation(model->animationList[5]);
+            animator->Reset();
+            animator->Play();
+        }
         break;
     }
+    
     switch (specKey)
     {
     case GLUT_KEY_LEFT:
@@ -3243,11 +3715,12 @@ bool mouseLeftPush = false;
 void Mouse(int button, int state, int x, int y)
 {
     ImGui_ImplGLUT_MouseFunc(button, state, x, y);
-    glm::vec2 mousePos = glm::vec2(((float)x / windowX) * 2 - 1, (((float)y / windowY) * 2 - 1) * -1);
+    glm::vec2 mousePos = glm::vec2(((float)x / CorePipeline::screenW) * 2 - 1, (((float)y / CorePipeline::screenH) * 2 - 1) * -1);
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
     {
         mouseLeftPush = true;
         mouseX = mousePos.x;
+        mouseY = mousePos.y;
     }
     if (button == GLUT_LEFT_BUTTON && state == GLUT_UP)
     {
@@ -3258,11 +3731,13 @@ void Mouse(int button, int state, int x, int y)
 void Motion(int x, int y)
 {
     ImGui_ImplGLUT_MotionFunc(x, y);
-    glm::vec2 mousePos = glm::vec2(((float)x / windowX) * 2 - 1, (((float)y / windowY) * 2 - 1) * -1);
+    glm::vec2 mousePos = glm::vec2(((float)x / CorePipeline::screenW) * 2 - 1, (((float)y / CorePipeline::screenH) * 2 - 1) * -1);
     if (mouseLeftPush)
     {
-        angle += (mousePos.x - mouseX) * 100;
+        angleX += (mousePos.x - mouseX) * 100;
+        angleY += (mousePos.y - mouseY) * 100;
         mouseX = mousePos.x;
+        mouseY = mousePos.y;
     }
 }
 
