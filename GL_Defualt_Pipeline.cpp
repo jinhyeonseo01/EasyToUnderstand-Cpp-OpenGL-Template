@@ -6,7 +6,7 @@
 
 // #pragma comment(lib,"./StudyDLL.lib")
 // $(SolutionDir)3rd Party\lib $(SolutionDir)3rd Party\include
-// glew32.lib freeglut.lib assimp-vc143-mt.lib SOIL.lib
+// glew32.lib freeglut.lib assimp-vc143-mt.lib SOIL.lib fmodL_vc.lib fmod_vc.lib fmodstudioL_vc.lib fmodstudio_vc.lib
 
 
 class AABB
@@ -175,6 +175,8 @@ public:
     glm::mat2 data_matrix2 = glm::mat2(1.0f);
     glm::mat3 data_matrix3 = glm::mat3(1.0f);
     glm::mat4 data_matrix4 = glm::mat4(1.0f);
+    std::shared_ptr<glm::mat4> array_matrix4;
+    int array_matrix4Size = 0;
 
     int col = 1;
     int row = 1;
@@ -231,19 +233,41 @@ public:
         data_vector_int = data;
         return this;
     }
-    UniformSegment* SetData(glm::mat2 data)
+
+    UniformSegment* SetData(glm::mat2& data)
     {
         data_matrix2 = data;
         return this;
     }
-    UniformSegment* SetData(glm::mat3 data)
+    UniformSegment* SetData(glm::mat3& data)
     {
         data_matrix3 = data;
         return this;
     }
-    UniformSegment* SetData(glm::mat4 data)
+    UniformSegment* SetData(glm::mat4& data)
     {
         data_matrix4 = data;
+        return this;
+    }
+    UniformSegment* SetData(glm::mat2&& data)
+    {
+        data_matrix2 = data;
+        return this;
+    }
+    UniformSegment* SetData(glm::mat3&& data)
+    {
+        data_matrix3 = data;
+        return this;
+    }
+    UniformSegment* SetData(glm::mat4&& data)
+    {
+        data_matrix4 = data;
+        return this;
+    }
+    UniformSegment* SetArray(std::shared_ptr<glm::mat4> data, int size)
+    {
+        array_matrix4 = data;
+        array_matrix4Size = size;
         return this;
     }
 
@@ -398,10 +422,34 @@ public:
 class Loader
 {
 public:
+    static std::vector<std::shared_ptr<AssimpPacket>> importers;
 
-    static std::shared_ptr<aiScene> ModelNotUV(const char* path, Assimp::Importer& importer)
+    static std::shared_ptr<AssimpPacket> GetAssimpPacket(const char* name)
     {
-        aiScene* pScene = (aiScene*)importer.ReadFile(path,
+        std::shared_ptr<AssimpPacket> assimpPacket = nullptr;
+        int i = 0;
+        for (i = 0; i < importers.size(); i++)
+        {
+            if (Loader::importers[i]->name == std::string(name))
+            {
+                assimpPacket = importers[i];
+                break;
+            }
+        }
+        if (i == importers.size())
+        {
+            assimpPacket = std::shared_ptr<AssimpPacket>(new AssimpPacket());
+            assimpPacket->name = std::string(name);
+            assimpPacket->importer = std::shared_ptr<Assimp::Importer>(new Assimp::Importer());
+            importers.push_back(assimpPacket);
+        }
+
+        return assimpPacket;
+    }
+
+    static std::shared_ptr<AssimpPacket> ModelNotUV(const char* path, std::shared_ptr<AssimpPacket> assetPacket)
+    {
+        aiScene* pScene = (aiScene*)assetPacket->importer->ReadFile(path,
             aiProcess_Triangulate | // 4각형 5각형을 3각형으로
             //aiProcess_GenSmoothNormals | // Normal이 없으면 Smmoth Normal 생성
             aiProcess_GenNormals | // Normal이 없으면 Normal 생성
@@ -430,13 +478,14 @@ public:
             aiProcess_CalcTangentSpace | // 탄젠트 계산
             aiProcess_SortByPType // 폴리곤을 타입별로 재정렬함. aiProcess_Triangulate 쓰면 어차피 삼각형만 남아서 필요 없음. 일단 넣어~
         );
-        return std::shared_ptr<aiScene>(pScene);
+        assetPacket->scene = std::shared_ptr<aiScene>(pScene);
+        return assetPacket;
     }
-    static std::shared_ptr<aiScene> ModelLoad(const char* path, Assimp::Importer& importer)
+    static std::shared_ptr<AssimpPacket> ModelLoad(std::shared_ptr<AssimpPacket> assetPacket, const char* path)
     {
         //"./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch.fbx"
         NormalLog(std::cerr) << "Model File Load - " << path << "\n";
-        aiScene* pScene = (aiScene*)importer.ReadFile(path,
+        aiScene* pScene = (aiScene*)assetPacket->importer->ReadFile(path,
             aiProcess_Triangulate | // 4각형 5각형을 3각형으로
             //aiProcess_GenSmoothNormals | // Normal이 없으면 Smmoth Normal 생성
             aiProcess_GenNormals | // Normal이 없으면 Normal 생성
@@ -465,12 +514,49 @@ public:
             aiProcess_CalcTangentSpace | // 탄젠트 계산
             aiProcess_SortByPType // 폴리곤을 타입별로 재정렬함. aiProcess_Triangulate 쓰면 어차피 삼각형만 남아서 필요 없음. 일단 넣어~
         );
-        
-        return std::shared_ptr<aiScene>(pScene);
+        assetPacket->scene = std::shared_ptr<aiScene>(pScene);
+        return assetPacket;
     }
-    static std::vector<std::shared_ptr<ModelInfo2>> ConvertModelToModelDatas(std::shared_ptr<Model> model, std::shared_ptr<aiScene> aiScene);
+    static std::shared_ptr<AssimpPacket> ModelLoad2(std::shared_ptr<AssimpPacket> assetPacket, const char* path)
+    {
+        //"./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch.fbx"
+        NormalLog(std::cerr) << "Model File Load - " << path << "\n";
+        aiScene* pScene = (aiScene*)assetPacket->importer->ReadFile(path,
+            aiProcess_Triangulate | // 4각형 5각형을 3각형으로
+            //aiProcess_GenSmoothNormals | // Normal이 없으면 Smmoth Normal 생성
+            aiProcess_GenNormals | // Normal이 없으면 Normal 생성
+            aiProcess_SplitLargeMeshes |// 매쉬가 너무 클때 쪼개는거 매쉬 클때 렌더링 유리.
+            aiProcess_ImproveCacheLocality |// 삼각형 개선. 잘 되면 켜보기
+            aiProcess_GenUVCoords | // UV없으면 UV 계산하게[ 시키기
+            //aiProcess_Debone | 손실없이 뼈 제거. 걍 쓰지말자.
+            //aiProcess_MakeLeftHanded | // 왼손 좌표계로 변경
+            //aiProcess_RemoveComponent | // (animations, materials, light sources, cameras, textures, vertex components 제거
+            //aiProcess_PreTransformVertices | // root Node를 제외한 모든 하위 노드들 전부 평탄화. 계층 제거.
+            //aiProcess_ValidateDataStructure | // 연결 유효성 검사
+            //aiProcess_ImproveCacheLocality | // 캐시히트율을 위해 삼각형 재정렬함.
+            //aiProcess_RemoveRedundantMaterials | // 중복이나 안쓰는거 제거
+            aiProcess_FixInfacingNormals | //잘못 연결되서 고장난 노멀 재대로 수정
+            //aiProcess_FindDegenerates | //삼각형에서 점이 겹쳐버리면 라인이나 점이 되버리는데, 이걸 Line이나 Point로 변환하는거임. 안쓰는게 나음.
+            aiProcess_FindInvalidData | //유효하지 않는 법선벡터, UV를 제거함. 이렇게 제거하고 나면 aiProcess_GenNormals같은게 새롭게 생성해줄거임. 애니메이션에서도 이점이 있다고함.
+            //aiProcess_GenUVCoords  | //UV를 자체적으로 계산함. 모델링툴에서 생성하는걸 추천하고, UV가 없으면 새롭게 생성하는거임.
+            aiProcess_FindInstances | //너무 매쉬가 많을때 키나봄. 느리다는거같음. 같은 재질인 매쉬들을 하나로 합쳐버리는 기능인듯.
+            //aiProcess_OptimizeMeshes |// 매쉬 를 줄여주는 최적화 옵션인듯. aiProcess_OptimizeGraph랑 같이 쓰는게 좋고, #aiProcess_SplitLargeMeshes and #aiProcess_SortByPType.랑 호환됨.
+            //걍 안키는게 나을듯. 뭔가 밑에 옵션이랑 호환되는 모양인데, 밑에 옵션을 못씀.
+            //aiProcess_OptimizeGraph |//필요없는 노드를 삭제함. 노드가 태그로 쓰일때 누락되는 문제가 잇나봄, 안키는게 나을듯. 계층구조가 손실된다고 함.
+            //aiProcess_FlipWindingOrder | CW, CCW 바꾸는거임.
+            //aiProcess_TransformUVCoords | //UV에 대해서 변환처리 한다고 하는거같음. 텍스쳐 이상해지면 꺼버리도록
+            aiProcess_FlipUVs | // 말그대로 uv의 y축을 뒤집음. 그리고 bitangent도 뒤집음.
+            aiProcess_JoinIdenticalVertices | // 인덱스 버퍼 기반으로 변환
+            aiProcess_CalcTangentSpace | // 탄젠트 계산
+            aiProcess_SortByPType // 폴리곤을 타입별로 재정렬함. aiProcess_Triangulate 쓰면 어차피 삼각형만 남아서 필요 없음. 일단 넣어~
+        );
+        assetPacket->scene = std::shared_ptr<aiScene>(pScene);
+        return assetPacket;
+    }
+    static std::vector<std::shared_ptr<ModelInfo>> ConvertModelToModelDatas(std::shared_ptr<Model> model);
 };
 
+std::vector<std::shared_ptr<AssimpPacket>> Loader::importers = {};
 
 #define BoneMax 4
 #define BoneMaxCount 200
@@ -488,7 +574,7 @@ public:
     float boneWeights[BoneMax] = { 0.0f, 0.0f, 0.0f, 0.0f };
 };
 
-class MeshTexture
+class ModelTexture
 {
 public:
     unsigned int id;
@@ -507,7 +593,8 @@ public:
     int boneCounter = 0;
     std::vector<std::shared_ptr<Mesh>> meshList;
     std::vector<std::shared_ptr<Animation>> animationList;
-
+    std::vector<ModelTexture> modelTextureList;
+    
     int GetBoneID(aiBone* bone)
     {
         return GetBoneID(std::string(bone->mName.C_Str()), bone);
@@ -532,8 +619,7 @@ public:
         }
         return boneID;
     }
-    static std::shared_ptr<Model> processModel(std::shared_ptr<aiScene> scene);
-    std::shared_ptr<ModelInfo2> processData();
+    static std::shared_ptr<Model> ProcessModel(std::shared_ptr<AssimpPacket> scene);
 };
 
 struct KeyPosition
@@ -655,6 +741,7 @@ public:
             if (animationTime <= m_Scales[index + 1].timeStamp)
                 return index;
         }
+
         assert(0);
     }
 
@@ -676,10 +763,11 @@ public:
 
         int p0Index = GetPositionIndex(animationTime);
         int p1Index = p0Index + 1;
+        
         float scaleFactor = GetScaleFactor(m_Positions[p0Index].timeStamp,
             m_Positions[p1Index].timeStamp, animationTime);
-        glm::vec3 finalPosition = glm::mix(m_Positions[p0Index].position,
-            m_Positions[p1Index].position, scaleFactor);
+
+        glm::vec3 finalPosition = glm::mix(m_Positions[p0Index].position, m_Positions[p1Index].position, scaleFactor);
         return glm::translate(glm::mat4(1.0f), finalPosition);
     }
 
@@ -695,10 +783,11 @@ public:
 
         int p0Index = GetRotationIndex(animationTime);
         int p1Index = p0Index + 1;
+        
         float scaleFactor = GetScaleFactor(m_Rotations[p0Index].timeStamp,
             m_Rotations[p1Index].timeStamp, animationTime);
-        glm::quat finalRotation = glm::slerp(m_Rotations[p0Index].orientation,
-            m_Rotations[p1Index].orientation, scaleFactor);
+
+        glm::quat finalRotation = glm::slerp(m_Rotations[p0Index].orientation, m_Rotations[p1Index].orientation, scaleFactor);
         finalRotation = glm::normalize(finalRotation);
         return glm::toMat4(finalRotation);
     }
@@ -712,10 +801,11 @@ public:
 
         int p0Index = GetScaleIndex(animationTime);
         int p1Index = p0Index + 1;
+        
         float scaleFactor = GetScaleFactor(m_Scales[p0Index].timeStamp,
             m_Scales[p1Index].timeStamp, animationTime);
-        glm::vec3 finalScale = glm::mix(m_Scales[p0Index].scale, m_Scales[p1Index].scale
-            , scaleFactor);
+
+        glm::vec3 finalScale = glm::mix(m_Scales[p0Index].scale, m_Scales[p1Index].scale, scaleFactor);
         return glm::scale(glm::mat4(1.0f), finalScale);
     }
 };
@@ -762,7 +852,7 @@ public:
 
     inline float GetDuration() { return m_Duration; }
 
-    inline const AssimpNodeData& GetRootNode() { return m_RootNode; }
+    AssimpNodeData& GetRootNode() { return m_RootNode; }
 
     inline const std::map<std::string, BoneInfo>& GetBoneIDMap()
     {
@@ -786,6 +876,13 @@ public:
     bool isLoop = false;
     float animSpeedPer = 1.0f;
     bool isPlay = false;
+    bool isPlayEnd = false;
+    bool isRootMove = false;
+    std::string rootBoneName = "Bip001";
+
+    glm::vec3 rootPosition = glm::vec3(0,0,0);
+    glm::vec3 rootPrevPosition = glm::vec3(0, 0, 0);
+    glm::vec3 rootDeltaPosition = glm::vec3(0, 0, 0);
 
     Animator(std::shared_ptr<Animation> animation);
     Animator();
@@ -807,32 +904,74 @@ public:
 Animator::Animator(std::shared_ptr<Animation> animation)
 {
     SetAnimation(animation);
-    isPlay = true;
     for (int i = m_FinalBoneMatrices.size(); i < BoneMaxCount; i++)
         m_FinalBoneMatrices.push_back(glm::mat4(1.0f));
+    this->isPlay = true;
+    this->isPlayEnd = false;
 }
 Animator::Animator()
 {
     for (int i = m_FinalBoneMatrices.size(); i < BoneMaxCount; i++)
         m_FinalBoneMatrices.push_back(glm::mat4(1.0f));
-    isPlay = false;
+    this->isPlay = false;
+    this->isPlayEnd = false;
 }
 
 void Animator::Update(float dt)
 {
-    m_DeltaTime = dt * animSpeedPer;
+    this->m_DeltaTime = dt * animSpeedPer;
     if (auto animation = m_CurrentAnimation.lock())
     {
-        m_CurrentTime += animation->GetTicksPerSecond() * dt;
-        if(isLoop)
-            m_CurrentTime = fmod(m_CurrentTime, animation->GetDuration());
+        this->m_CurrentTime += animation->GetTicksPerSecond() * this->m_DeltaTime;
+        if (isLoop)
+        {
+            if(animation->GetDuration() <= this->m_CurrentTime)
+                this->isPlayEnd = true;
+            else
+                this->isPlayEnd = false;
+            this->m_CurrentTime = fmod(this->m_CurrentTime, animation->GetDuration());
+        }
         else
         {
-            m_CurrentTime = Min(m_CurrentTime, animation->GetDuration());
-            isPlay = false;
+            auto prevTime = this->m_CurrentTime;
+            this->m_CurrentTime = Min(m_CurrentTime, animation->GetDuration());
+            if (abs(this->m_CurrentTime - animation->GetDuration()) < 0.001f)
+            {
+                this->isPlay = false;
+                this->isPlayEnd = true;
+            }
         }
+        auto root = &animation->GetRootNode();
+
+        this->rootPrevPosition = this->rootPosition;
+        CalculateBoneTransform(root, glm::mat4(1.0f));
+        if (this->isLoop && this->isPlayEnd)
+        {
+        }
+        else
+            this->rootDeltaPosition = this->rootPosition - this->rootPrevPosition;
+        /*
+        this->rootDeltaPosition = this->rootPosition - this->rootPrevPosition;
+        if (this->isLoop && this->isPlayEnd)
+        {
+            
+            auto originTime = this->m_CurrentTime;
+            
+            this->m_CurrentTime = animation->GetDuration();
+            CalculateBoneTransform(root, glm::mat4(1.0f));
+            this->rootDeltaPosition = this->rootPosition - this->rootPrevPosition;
+            
+            this->m_CurrentTime = 0;
+            CalculateBoneTransform(root, glm::mat4(1.0f));
+            auto zeroTimePos = this->rootPosition;
+
+            this->m_CurrentTime = originTime;
+            CalculateBoneTransform(root, glm::mat4(1.0f));
+            this->rootDeltaPosition = this->rootDeltaPosition + (this->rootPosition - zeroTimePos);
+            
+        }*/
         
-        CalculateBoneTransform(&animation->GetRootNode(), glm::mat4(1.0f));
+        //this->isPlayEnd
     }
 }
 
@@ -841,12 +980,24 @@ void Animator::SetAnimation(std::shared_ptr<Animation> pAnimation)
     m_CurrentAnimation = pAnimation;
     m_CurrentTime = 0.0f;
     isPlay = true;
+    isPlayEnd = false;
+    this->rootPosition = glm::vec3(0, 0, 0);
+    this->rootPrevPosition = glm::vec3(0, 0, 0);
+    if (auto animation = m_CurrentAnimation.lock())
+    {
+        auto root = &animation->GetRootNode();
+        CalculateBoneTransform(root, glm::mat4(1.0f));
+        this->rootPrevPosition = this->rootPosition;
+    }
 }
 
 void Animator::Play()
 {
     if (auto animation = m_CurrentAnimation.lock())
+    {
         this->isPlay = true;
+        this->isPlayEnd = false;
+    }
     else
         WarringLog() << "애니메이션이 없음\n";
 }
@@ -857,17 +1008,36 @@ void Animator::Pause()
 void Animator::Stop()
 {
     this->isPlay = false;
+    this->isPlayEnd = false;
     this->m_CurrentTime = 0.0f;
+    this->rootPosition = glm::vec3(0, 0, 0);
+    this->rootPrevPosition = glm::vec3(0, 0, 0);
+    if (auto animation = m_CurrentAnimation.lock())
+    {
+        auto root = &animation->GetRootNode();
+        CalculateBoneTransform(root, glm::mat4(1.0f));
+        this->rootPrevPosition = this->rootPosition;
+    }
 }
 void Animator::Reset()
 {
     this->m_CurrentTime = 0.0f;
+    this->isPlayEnd = false;
+    this->rootPosition = glm::vec3(0, 0, 0);
+    this->rootPrevPosition = glm::vec3(0, 0, 0);
+    if (auto animation = m_CurrentAnimation.lock())
+    {
+        auto root = &animation->GetRootNode();
+        CalculateBoneTransform(root, glm::mat4(1.0f));
+        this->rootPrevPosition = this->rootPosition;
+    }
 }
 
 void Animator::CalculateBoneTransform(const AssimpNodeData* node, glm::mat4 parentTransform)
 {
     std::string nodeName = node->name;
     glm::mat4 nodeTransform = node->transformation;
+    
     if (auto animation = m_CurrentAnimation.lock())
     {
         Bone* Bone = animation->FindBone(nodeName);
@@ -877,7 +1047,12 @@ void Animator::CalculateBoneTransform(const AssimpNodeData* node, glm::mat4 pare
             Bone->Update(m_CurrentTime);
             nodeTransform = Bone->GetLocalTransform();
         }
-
+        if (nodeName == rootBoneName)
+        {
+            rootPosition = nodeTransform[3];
+            if (!isRootMove)
+                nodeTransform[3] = glm::vec4(0, nodeTransform[3][1], 0, 1.0f);
+        }
         glm::mat4 globalTransformation = parentTransform * nodeTransform;
 
         auto boneInfoMap = animation->GetBoneIDMap();
@@ -885,7 +1060,9 @@ void Animator::CalculateBoneTransform(const AssimpNodeData* node, glm::mat4 pare
         {
             int index = boneInfoMap[nodeName].id;
             glm::mat4 offset = boneInfoMap[nodeName].offset;
-            m_FinalBoneMatrices[index] = globalTransformation * offset;
+
+            m_FinalBoneMatrices[index] = globalTransformation * offset;//
+
         }
 
         for (int i = 0; i < node->childrenCount; i++)
@@ -941,11 +1118,11 @@ public:
     bool hasUVs[8] = { false, false, false, false, false, false, false, false };
     bool hasBone = false;
 
+    int materialIndex = -1;
     std::vector<MeshVertex> vertexs;
     std::vector<std::vector<unsigned int>> faceAndindexs;
-    std::vector<MeshTexture> textures;
 
-    std::shared_ptr<ModelInfo2> processData();
+    std::shared_ptr<ModelInfo> ProcessModelData();
 };
 
 
@@ -1048,14 +1225,44 @@ public:
             {
                 glGetActiveUniform(this->shaderID, idx, bufSize, &length, &size, &type, name);
                 NormalLog(std::cerr, "Info", 1) << "Uniform: name:" << name << ", nameLength:" << length << ", size:" << size << ", type:" << type << "\n";
-
+                //finalBonesMatrices[0]
                 int elementType = GL_FLOAT;
                 int col = 1;
                 int row = size;
-                char* name2;
-                std::string(name).copy(name2 = new char[length + 1](), length);
-                SetUniform(name, type);
-                delete[] name2;
+                
+                for (int sizeLoopIndex = 0; sizeLoopIndex < size; sizeLoopIndex++)
+                {
+                    char* name2;
+                    std::string nameStr = std::string(name);
+                    if (size != 1)
+                    {
+                        int begin = nameStr.find('[', 0);
+                        int end = nameStr.find(']', 0);
+                        nameStr = nameStr.replace(begin, (end - begin)+1, "");
+                        nameStr += std::string("[") + std::to_string(sizeLoopIndex) + std::string("]");//nameStr.append(
+                        length = nameStr.length();
+                    }
+                    nameStr.copy(name2 = new char[length + 1](), length);
+                    SetUniform(name2, type);
+                    delete[] name2;
+                }
+                /*
+                for (int sizeLoopIndex = 0; sizeLoopIndex < 1; sizeLoopIndex++)
+                {
+                    char* name2;
+                    std::string nameStr = std::string(name);
+                    if (size != 1)
+                    {
+                        int begin = nameStr.find('[', 0);
+                        int end = nameStr.find(']', 0);
+                        nameStr = nameStr.replace(begin, (end - begin) + 1, "");
+                        //nameStr += std::string("[") + std::to_string(sizeLoopIndex) + std::string("]");//nameStr.append(
+                        length = nameStr.length();
+                    }
+                    nameStr.copy(name2 = new char[length + 1](), length);
+                    SetUniform(name2, type);
+                    delete[] name2;
+                }*/
                 //
             }
             uniformStorage->BindShader(this);
@@ -1276,6 +1483,8 @@ UniformSegment::UniformSegment(const UniformSegment& origin)
     this->data_matrix2 = origin.data_matrix2;
     this->data_matrix3 = origin.data_matrix3;
     this->data_matrix4 = origin.data_matrix4;
+    this->array_matrix4 = origin.array_matrix4;
+    this->array_matrix4Size = origin.array_matrix4Size;
 }
 UniformSegment& UniformSegment::operator =(const UniformSegment& origin)
 {
@@ -1289,6 +1498,8 @@ UniformSegment& UniformSegment::operator =(const UniformSegment& origin)
     this->data_matrix2 = origin.data_matrix2;
     this->data_matrix3 = origin.data_matrix3;
     this->data_matrix4 = origin.data_matrix4;
+    this->array_matrix4 = origin.array_matrix4;
+    this->array_matrix4Size = origin.array_matrix4Size;
 
     return *this;
 }
@@ -1304,6 +1515,8 @@ UniformSegment& UniformSegment::operator =(UniformSegment&& origin)
     this->data_matrix2 = origin.data_matrix2;
     this->data_matrix3 = origin.data_matrix3;
     this->data_matrix4 = origin.data_matrix4;
+    this->array_matrix4 = origin.array_matrix4;
+    this->array_matrix4Size = origin.array_matrix4Size;
 
     origin.name = nullptr;
     return *this;
@@ -1319,6 +1532,8 @@ UniformSegment::UniformSegment(UniformSegment&& origin)
     this->data_matrix2 = origin.data_matrix2;
     this->data_matrix3 = origin.data_matrix3;
     this->data_matrix4 = origin.data_matrix4;
+    this->array_matrix4 = origin.array_matrix4;
+    this->array_matrix4Size = origin.array_matrix4Size;
 
     origin.name = nullptr;
 }
@@ -1329,6 +1544,8 @@ void UniformSegment::UpdateUniformSegment(UniformSegment& origin)
     this->data_matrix2 = origin.data_matrix2;
     this->data_matrix3 = origin.data_matrix3;
     this->data_matrix4 = origin.data_matrix4;
+    this->array_matrix4 = origin.array_matrix4;
+    this->array_matrix4Size = origin.array_matrix4Size;
 }
 
 void UniformSegment::Bind()
@@ -1346,7 +1563,12 @@ void UniformSegment::Bind()
         case GL_FLOAT_VEC4:         glUniform4f(location, data_vector.x, data_vector.y, data_vector.z, data_vector.w); break;
         case GL_FLOAT_MAT2:         glUniformMatrix2fv(location, 1, normalized, glm::value_ptr(data_matrix2)); break;
         case GL_FLOAT_MAT3:         glUniformMatrix3fv(location, 1, normalized, glm::value_ptr(data_matrix3)); break;
-        case GL_FLOAT_MAT4:         glUniformMatrix4fv(location, 1, normalized, glm::value_ptr(data_matrix4)); break;
+        case GL_FLOAT_MAT4:
+            if(array_matrix4Size == 0)
+                glUniformMatrix4fv(location, 1, normalized, glm::value_ptr(data_matrix4));
+            else
+                glUniformMatrix4fv(location, array_matrix4Size, normalized, glm::value_ptr(array_matrix4.get()[0]));
+            break;
 
         case GL_DOUBLE:             glUniform1d(location, data_vector.x); break;
         case GL_DOUBLE_VEC2:        glUniform2d(location, data_vector.x, data_vector.y); break;
@@ -1668,16 +1890,16 @@ public:
         attributeInfos.clear();
     }
 };
-class ModelInfo2
+class ModelInfo
 {
 public:
     std::vector<ModelBufferData> datas;
 
-    ModelInfo2()
+    ModelInfo()
     {
 
     }
-    ModelInfo2(std::vector<ModelBufferData> datas)
+    ModelInfo(std::vector<ModelBufferData> datas)
     {
         this->datas = datas;
     }
@@ -1907,27 +2129,29 @@ public:
     std::vector<std::pair<int, unsigned int>> table_BufferID_To_VBO;
     
     std::shared_ptr<UniformStorage> uniformStorage;
+    std::weak_ptr<GameObject> gameObject;
+
     Material* material = nullptr;
-    ModelInfo2* modelData = nullptr;
+    ModelInfo* modelData = nullptr;
 
     bool activeIndexRender = false;
 
     float zSorting = 0;
 
-    RenderData(Material* material, ModelInfo2* modelData)
+    RenderData(Material* material, ModelInfo* modelData)
     {
         uniformStorage = std::shared_ptr<UniformStorage>(new UniformStorage());
         Blend(material, modelData);
     }
 
-    void Blend(Material* material, ModelInfo2* modelData)
+    void Blend(Material* material, ModelInfo* modelData)
     {
         this->BindVAO();
         this->material = material;
         this->modelData = modelData;
-        this->modelBufferList = ModelInfo2::GetFilteringBufferDatas(this->modelData->datas);
-        this->renderBufferList = ModelInfo2::GetFilteringShaderBufferDatas(this->modelBufferList, this->material->shader);
-        auto indexBufferList = ModelInfo2::GetFilteringIndexBuffers(this->modelBufferList);
+        this->modelBufferList = ModelInfo::GetFilteringBufferDatas(this->modelData->datas);
+        this->renderBufferList = ModelInfo::GetFilteringShaderBufferDatas(this->modelBufferList, this->material->shader);
+        auto indexBufferList = ModelInfo::GetFilteringIndexBuffers(this->modelBufferList);
 
         if (indexBufferList.size() != 0)
         {
@@ -2111,7 +2335,7 @@ public:
             glFrontFace(material->para_cullingCycle);
         }
         else
-            glDisable(GL_BLEND);
+            glDisable(GL_CULL_FACE);
 
         if (material->para_transparent)
         {
@@ -2167,185 +2391,9 @@ public:
     }
 };
 
-class ModelInfo
+std::shared_ptr<Model> Model::ProcessModel(std::shared_ptr<AssimpPacket> packet)
 {
-public:
-    bool isInit = false;
-
-    int connectShaderID = UINT32_MAX;
-    unsigned int indexCount = 0;
-    unsigned int arrayCount = 0;
-
-    void* indexBufferAddress = nullptr;
-    int indexBufferSize = 0;
-
-    unsigned int VAO = UINT32_MAX;
-    unsigned int EBO = UINT32_MAX;
-    std::unordered_map<const char*, unsigned int, hash_str, equal_str> map_Attribute_VBO_IDs;
-    std::unordered_map<const char*, VBOInfo, hash_str, equal_str> map_Attribute_VBO_Infos;
-
-    void Bind()
-    {
-        if (VAO == UINT32_MAX)
-            glGenVertexArrays(1, &VAO);
-        glBindVertexArray(VAO);
-    }
-
-    Shader* SetShaderConnect(Shader* shader)
-    {
-        if (connectShaderID != shader->shaderID)
-        {
-            shader->Bind();
-            this->Bind();
-
-            if (shader != nullptr)
-            {
-                NormalLog(std::cerr, "Try") << "Material -> Shader Connect  shaderID : " << shader << "\n";
-                bool result = UpdateAttrubute(shader);
-                if (!result)
-                {
-                    if (shader->shaderID != errorShader.shaderID)
-                        return SetShaderConnect(&errorShader); // Error shader 적용.
-                    return nullptr;
-                }
-            }
-            else
-            {
-                connectShaderID = UINT32_MAX;
-                return nullptr;
-            }
-            connectShaderID = shader->shaderID;
-        }
-        return shader;
-    }
-
-
-    void Init()
-    {
-        if (!isInit)
-        {
-            if (VAO != UINT32_MAX)
-                glDeleteVertexArrays(1, &VAO);
-
-            if (EBO != UINT32_MAX)
-                glDeleteBuffers(1, &EBO);
-            for (auto it = map_Attribute_VBO_IDs.begin(); it != map_Attribute_VBO_IDs.end(); ++it)
-                glDeleteBuffers(1, &(it->second));
-            map_Attribute_VBO_IDs.clear();
-            map_Attribute_VBO_Infos.clear();
-
-            glGenVertexArrays(1, &VAO); //--- 버텍스 array 생성
-            glBindVertexArray(VAO);
-            glGenBuffers(1, &EBO);
-
-            isInit = true;
-        }
-    }
-
-    bool UpdateAttrubute(Shader* shader)
-    {
-        this->Bind();
-
-        if (shader != nullptr)
-        {
-
-            for (int i = 0; i < shader->attributeInfos.size(); i++)
-            {
-                auto nowAttriInfo = shader->attributeInfos[i];
-
-                if (map_Attribute_VBO_Infos.find(nowAttriInfo.name) == map_Attribute_VBO_Infos.end())
-                {
-                    ErrorLog(std::cerr, "Error") << "Material -> Shader Connected Failed : 쉐이더에 필요한 attribute를 찾을 수 없습니다. name : " << nowAttriInfo.name << "\n";
-                    return false;
-                }
-                // 무조건 어트리뷰트 있음.
-                VBOInfo VBO_Info = map_Attribute_VBO_Infos[nowAttriInfo.name];
-                unsigned int VBO_Id = map_Attribute_VBO_IDs[nowAttriInfo.name];
-
-                glBindBuffer(VBO_Info.bufferType, VBO_Id);
-                for (int j = 0; j < nowAttriInfo.row; j++)
-                    glVertexAttribPointer(nowAttriInfo.location + j, nowAttriInfo.col, nowAttriInfo.type, nowAttriInfo.normalized, VBO_Info.jumpSize, (void*)(VBO_Info.offset + j * Shader::GL_TypeToSizeOf(nowAttriInfo.type)));
-                glEnableVertexAttribArray(nowAttriInfo.location);
-            }
-        }
-        return true;
-    }
-
-    void SetArrayCount(unsigned int arrayCount)
-    {
-        this->arrayCount = arrayCount;
-    }
-    void SetIndexBuffer(unsigned int* indexBufferAddress, int arraySize)
-    {
-        Bind();
-        if (EBO == UINT32_MAX)
-            glGenBuffers(1, &EBO);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, arraySize, indexBufferAddress, GL_STATIC_DRAW);
-
-        this->indexBufferAddress = indexBufferAddress;
-        this->indexCount = arraySize / sizeof(unsigned int);
-    }
-    void SetBufferData(const char* attriName, VBOInfo info)
-    {
-        SetBufferData(attriName, info.dataBufferAddress, info.dataBufferSize, info.jumpSize, info.offset);
-    }
-    void SetBufferData(const char* attriName, void* dataBuffer, int dataBufferSize, unsigned int jumpSize, unsigned int offset)
-    {
-        unsigned int AttributeVBO_ID;
-        auto VBO_Info = VBOInfo(dataBuffer, dataBufferSize, GL_ARRAY_BUFFER, jumpSize, offset);
-        Bind();
-        if (map_Attribute_VBO_IDs.find(attriName) != map_Attribute_VBO_IDs.end())
-        {
-            AttributeVBO_ID = map_Attribute_VBO_IDs[attriName];
-            map_Attribute_VBO_Infos[attriName];
-        }
-        else
-        {
-            glGenBuffers(1, &AttributeVBO_ID);
-            map_Attribute_VBO_IDs.insert({ attriName, AttributeVBO_ID });
-            map_Attribute_VBO_Infos.insert({ attriName, VBO_Info });
-        }
-        map_Attribute_VBO_Infos[attriName] = VBO_Info;
-        glBindBuffer(VBO_Info.bufferType, AttributeVBO_ID);
-        glBufferData(VBO_Info.bufferType, dataBufferSize, dataBuffer, GL_STATIC_DRAW);
-    }
-    /*Buffer Address그대로고 데이터 내용 길이만 변할때.*/
-    void UpdateDataBuffer(const char* attriName, void* dataBufferAddress = nullptr, int dataBufferSize = -1, int jumpSize = -1, int offset = -1)
-    {
-        Bind();
-        if (map_Attribute_VBO_Infos.find(attriName) != map_Attribute_VBO_Infos.end())
-        {
-            auto bufferInfo = map_Attribute_VBO_Infos[attriName];
-            if (dataBufferAddress != nullptr)
-                bufferInfo.dataBufferAddress = dataBufferAddress;
-            if (dataBufferSize != -1)
-                bufferInfo.dataBufferSize = dataBufferSize;
-            if (jumpSize != -1)
-                bufferInfo.jumpSize = jumpSize;
-            if (offset != -1)
-                bufferInfo.offset = offset;
-
-            SetBufferData(attriName, bufferInfo);
-        }
-    }
-    void UpdateIndexBuffer(int indexBufferSize = -1)
-    {
-        Bind();
-        if (EBO != UINT32_MAX)
-        {
-            if (indexBufferSize != -1)
-            {
-                this->indexBufferSize = indexBufferSize;
-                this->indexCount = indexBufferSize / sizeof(unsigned int);
-            }
-            SetIndexBuffer((unsigned int*)this->indexBufferAddress, this->indexBufferSize);
-        }
-    }
-};
-
-std::shared_ptr<Model> Model::processModel(std::shared_ptr<aiScene> scene)
-{
+    auto scene = packet->scene;
     std::shared_ptr<Model> model = std::shared_ptr<Model>(new Model());
     std::vector<std::shared_ptr<Mesh>> meshList;
     std::vector<std::shared_ptr<Animation>> animationList;
@@ -2355,8 +2403,8 @@ std::shared_ptr<Model> Model::processModel(std::shared_ptr<aiScene> scene)
         auto mesh = scene->mMeshes[i];
         std::shared_ptr<Mesh> meshData = std::shared_ptr<Mesh>(new Mesh());
         meshList.push_back(meshData);
-
         // Init
+        meshData->materialIndex = (int)mesh->mMaterialIndex;
         meshData->hasNormal = mesh->HasNormals();
         meshData->hasTangent = mesh->HasTangentsAndBitangents();
         for (int k = 0; k < 8; k++)
@@ -2453,6 +2501,8 @@ std::shared_ptr<Model> Model::processModel(std::shared_ptr<aiScene> scene)
 
     for (int i = 0; i < scene->mNumAnimations; i++)
     {
+        //이름체크
+        //std::cout << i << " : " << scene->mAnimations[i]->mName.C_Str() << "\n";
         std::shared_ptr<Animation> nowAnim = std::shared_ptr<Animation>(new Animation(model, scene.get(), scene->mAnimations[i]));
         animationList.push_back(nowAnim);
     }
@@ -2460,10 +2510,11 @@ std::shared_ptr<Model> Model::processModel(std::shared_ptr<aiScene> scene)
     //return meshList;
     model->meshList = meshList;
     model->animationList = animationList;
+    packet->model = model;
     return model;
 }
 
-std::shared_ptr<ModelInfo2> Mesh::processData()
+std::shared_ptr<ModelInfo> Mesh::ProcessModelData()
 {
     std::vector<unsigned int> meshIndexList;
     std::vector<float> meshVertexList;
@@ -2556,7 +2607,7 @@ std::shared_ptr<ModelInfo2> Mesh::processData()
         meshIndexBuffer[meshIndex++] = meshIndexList[i];
 
 
-    std::shared_ptr<ModelInfo2> modelData = std::shared_ptr<ModelInfo2>(new ModelInfo2({
+    std::shared_ptr<ModelInfo> modelData = std::shared_ptr<ModelInfo>(new ModelInfo({
         { std::shared_ptr<void>(meshVertexBuffer), (int)(meshVertexList.size()), GL_FLOAT, {
             attri
         }},
@@ -2565,13 +2616,13 @@ std::shared_ptr<ModelInfo2> Mesh::processData()
     return modelData;
 }
 
-std::vector<std::shared_ptr<ModelInfo2>> Loader::ConvertModelToModelDatas(std::shared_ptr<Model> model, std::shared_ptr<aiScene> aiScene)
+std::vector<std::shared_ptr<ModelInfo>> Loader::ConvertModelToModelDatas(std::shared_ptr<Model> model)
 {
-    std::vector<std::shared_ptr<ModelInfo2>> modelList;
+    std::vector<std::shared_ptr<ModelInfo>> modelList;
 
     std::vector<std::shared_ptr<Mesh>> meshList = model->meshList;
     for (int i = 0; i < meshList.size(); i++)
-        modelList.push_back(meshList[i]->processData());
+        modelList.push_back(meshList[i]->ProcessModelData());
     return modelList;
 }
 
@@ -2774,7 +2825,6 @@ std::weak_ptr<GameObject> World::CreateGameObject(const char* name)
     gameObject->Create();
     return gameObject;
 }
-
 bool World::AddGameObject(std::shared_ptr<GameObject> gameObject)
 {
     for (int i = 0; i < gameObjectList.size(); i++)
@@ -2784,6 +2834,33 @@ bool World::AddGameObject(std::shared_ptr<GameObject> gameObject)
     gameObject->world = shared_from_this();
     return true;
 }
+
+std::weak_ptr<GameObject> World::FindGameObjectByName(const char* name)
+{
+    std::string nameString = std::string(name);
+    for (int i = 0; i < gameObjectList.size(); i++)
+    {
+        if (nameString == std::string(gameObjectList[i]->name.get()))
+        {
+            return gameObjectList[i];
+        }
+    }
+    return std::weak_ptr<GameObject>();
+}
+std::vector<std::weak_ptr<GameObject>> World::FindGameObjectsByName(const char* name)
+{
+    std::vector<std::weak_ptr<GameObject>> resultList;
+    std::string nameString = std::string(name);
+    for (int i = 0; i < gameObjectList.size(); i++)
+    {
+        if (nameString == std::string(gameObjectList[i]->name.get()))
+        {
+            resultList.push_back(gameObjectList[i]);
+        }
+    }
+    return resultList;
+}
+
 void World::WorldUpdate()
 {
     for (int i = 0; i < gameObjectList.size(); i++)
@@ -2807,25 +2884,43 @@ void World::WorldRender()
     renderingList.clear();
     for (int i = 0; i < gameObjectList.size(); i++)
         gameObjectList[i]->BeforeRender();
+    /*
     std::sort(renderingList.begin(), renderingList.end(), [](const std::shared_ptr<RenderData>& a, const std::shared_ptr<RenderData>& b)
         {
+            if (a->gameObject.lock())
+            {
+                if (b->gameObject.lock())
+                {
+                    b->gameObject.lock()->name
+                }
+            }
             float aWeight = a->zSorting + 10000 * (a->material->para_transparent ? 1 : 0);
             float bWeight = b->zSorting + 10000 * (b->material->para_transparent ? 1 : 0);
             return aWeight < bWeight;
         });
+    */
+    GameObject* prevGameObject = nullptr;
+    Shader* prevShader = nullptr;
     for (int i = 0; i < renderingList.size(); i++)
     {
         std::shared_ptr<RenderData> renderData = renderingList[i];
         Shader* nowShader = renderData->material->shader;
         std::shared_ptr<UniformStorage> shaderUniformStorage = nowShader->uniformStorage;
-        
+        GameObject* nowGameObject = nullptr;
+        if (renderData->gameObject.lock())
+            nowGameObject = renderData->gameObject.lock().get();
+
         nowShader->Bind();
         shaderUniformStorage->UpdateUniforms(*uniformStorage.get());
+        if (nowGameObject != nullptr && (prevGameObject != nowGameObject || prevShader != nowShader))
+            shaderUniformStorage->UpdateUniforms(*nowGameObject->uniformStorage.get());
         shaderUniformStorage->UpdateUniforms(*renderData->uniformStorage.get());
         shaderUniformStorage->UpdateUniforms(*renderData->material->uniformStorage.get());
         for (int j = 0; j < shaderUniformStorage->uniformList.size(); j++)
             shaderUniformStorage->uniformList[j].Bind();
         renderData->Rendering();
+        prevGameObject = nowGameObject;
+        prevShader = nowShader;
     }
 }
 
@@ -2860,10 +2955,10 @@ glm::mat4&& Transform::GetModelToWorldAll()
     auto TotalTRS = glm::mat4(1);
     while (tempNow != nullptr)
     {
-        if (!tempNow->gameObject.expired())
+        if (tempNow->gameObject.lock())
         {
             TotalTRS = tempNow->GetModelToWorld() * TotalTRS;
-            if ((!tempNow->gameObject.lock()->parent.expired()) && (!tempNow->gameObject.lock()->parent.lock()->transform.expired()))
+            if ((tempNow->gameObject.lock()->parent.lock()) && (!tempNow->gameObject.lock()->parent.lock()->transform.expired()))
             {
                 tempNow = tempNow->gameObject.lock()->parent.lock()->transform.lock().get();
             }
@@ -2886,6 +2981,7 @@ GameObject::GameObject()
 {
     active = true;
     this->name = std::shared_ptr<char>(new char[7]{'o','b','j','e','c','t', 0});
+    uniformStorage = std::shared_ptr<UniformStorage>(new UniformStorage());
 }
 GameObject::GameObject(char* name)
 {
@@ -2894,6 +2990,7 @@ GameObject::GameObject(char* name)
     char* tempName;
     strncpy((tempName = new char[nameLength + 1]()), name, nameLength);
     this->name = std::shared_ptr<char>(tempName);
+    uniformStorage = std::shared_ptr<UniformStorage>(new UniformStorage());
 }
 
 void GameObject::Create()
@@ -3062,7 +3159,7 @@ std::weak_ptr<T> GameObject::AddComponent(T* component)
 template <class T>
 std::weak_ptr<T> GameObject::GetComponent()
 {
-    Component* castingComponent = nullptr;
+    std::weak_ptr<T> castingComponent;
     for (int i = 0; i < this->componentList.size(); i++)
     {
         auto castingComponent = std::dynamic_pointer_cast<T>(this->componentList[i]);
@@ -3073,6 +3170,23 @@ std::weak_ptr<T> GameObject::GetComponent()
     }
     return castingComponent;
 }
+
+template <class T>
+std::vector<std::weak_ptr<T>> GameObject::GetComponents()
+{
+    Component* castingComponent = nullptr;
+    std::vector<std::weak_ptr<T>> componentList;
+    for (int i = 0; i < this->componentList.size(); i++)
+    {
+        std::shared_ptr<T> castingComponent = std::dynamic_pointer_cast<T>(this->componentList[i]);
+        if (castingComponent != nullptr)
+        {
+            componentList.push_back(castingComponent);
+        }
+    }
+    return componentList;
+}
+
 template <class T>
 bool GameObject::RemoveComponent(T* element)
 {
@@ -3166,8 +3280,11 @@ void ModelRenderer::AddRenderData(RenderData* renderData)
         if (this->renderDataList[i]->material == renderData->material &&
             this->renderDataList[i]->modelData == renderData->modelData)
             index = i;
-    if(index == -1)
+    if (index == -1)
+    {
+        renderData->gameObject = this->gameObject;
         this->renderDataList.push_back(std::shared_ptr<RenderData>(renderData));
+    }
 }
 void ModelRenderer::AddRenderData(std::shared_ptr<RenderData> renderData)
 {
@@ -3177,13 +3294,17 @@ void ModelRenderer::AddRenderData(std::shared_ptr<RenderData> renderData)
             this->renderDataList[i]->modelData == renderData->modelData)
             index = i;
     if (index == -1)
+    {
+        renderData->gameObject = this->gameObject;
         this->renderDataList.push_back(renderData);
+    }
 }
-void ModelRenderer::AddModel(ModelInfo2* modelInfo)
+void ModelRenderer::AddModel(ModelInfo* modelInfo)
 {
     for (int i = 0; i < this->materialList.size(); i++)
     {
         auto renderData = std::shared_ptr<RenderData>(new RenderData(this->materialList[i], modelInfo));
+        renderData->gameObject = this->gameObject;
         this->renderDataList.push_back(renderData);
     }
     this->modelList.push_back(modelInfo);
@@ -3193,11 +3314,12 @@ void ModelRenderer::AddMaterial(Material* material)
     for (int i = 0; i < this->modelList.size(); i++)
     {
         auto renderData = std::shared_ptr<RenderData>(new RenderData(material, this->modelList[i]));
+        renderData->gameObject = this->gameObject;
         this->renderDataList.push_back(renderData);
     }
     this->materialList.push_back(material);
 }
-void ModelRenderer::AddMaterialModel(Material* material, ModelInfo2* modelInfo)
+void ModelRenderer::AddMaterialModel(Material* material, ModelInfo* modelInfo)
 {
     this->AddMaterial(material);
     this->AddModel(modelInfo);
@@ -3216,33 +3338,990 @@ void ModelRenderer::BeforeRender()
     }
 }
 
+
+void CameraControl::SetTarget(std::weak_ptr<GameObject> target)
+{
+    this->targetObject = target;
+}
 void CameraControl::Start()
 {
-    offsetPosition = glm::vec3(0, 1.0f, 0);
-    offsetDistance = 3.0f;
+    offsetPosition = glm::vec3(0, 1.5f, 0);
+    //offsetDistance = 4.0f;
+    offsetDistance = 4.0f;
 }
 
 void CameraControl::Update()
 {
-    if (auto target = targetObject.lock())
-    {
-        targetPosition = target->transform.lock()->position;
+    glm::vec3 finalPosition = this->gameObject.lock()->transform.lock()->position;
+    glm::vec3 finalRotation = this->gameObject.lock()->transform.lock()->rotation;
+    if (CorePipeline::GetKeyDown('='))
+        offsetDistance += 0.5f;
+    if (CorePipeline::GetKeyDown('-'))
+        offsetDistance -= 0.5f;
+    { // 카메라 플레이어 타겟 이동
+        glm::vec2 deltaMousePos = CorePipeline::mousePosition - CorePipeline::mousePositionPrev;
+        directionAngle += glm::vec3(-deltaMousePos.y, deltaMousePos.x, 0) * CorePipeline::mouseMoveSpeedPer;
+        directionAngle.x = Min(Max(directionAngle.x, -89.999 * D2R), 89.999 * D2R);
+
+        if (CorePipeline::GetKeyDown(27))
+            CorePipeline::GameExit();
+
+        if (auto target = targetObject.lock())
+        {
+            targetPosition = target->transform.lock()->position;
+        }
+
+        currentPosition = currentPosition + ((targetPosition + offsetPosition) - currentPosition) * 0.2f * CorePipeline::deltaTime * 60.0f;
+
+        glm::vec3 finalDirection = glm::vec3(
+            cos(directionAngle.y) * cos(directionAngle.x),
+            sin(directionAngle.x),
+            sin(directionAngle.y) * cos(directionAngle.x));
+        finalDirection = glm::normalize(finalDirection) * offsetDistance;
+        //directionAngle.y += 0.01f;
+        glm::vec3 angle = glm::eulerAngles(glm::quatLookAtRH(glm::normalize(-finalDirection), glm::vec3(0, 1, 0)));
+        glm::vec3 lookPlayerRotation = glm::vec3(directionAngle.x, -directionAngle.y - 90 * D2R, 0);
+
+        finalPosition = currentPosition + finalDirection;
+        finalRotation = lookPlayerRotation;
     }
 
-    glm::vec3 finalTargetPosition = targetPosition + offsetPosition;
-    glm::vec3 finalDirection = glm::vec3(
-        cos(directionAngle.y) * cos(directionAngle.x),
-        sin(directionAngle.x),
-        sin(directionAngle.y) * cos(directionAngle.x));
-    finalDirection = glm::normalize(finalDirection) * offsetDistance;
-    //directionAngle.y += 0.01f;
-    this->gameObject.lock()->transform.lock()->position = finalTargetPosition + finalDirection;
-    glm::vec3 angle = glm::eulerAngles(glm::quatLookAtRH(glm::normalize(-finalDirection), glm::vec3(0, 1, 0)));
-    
-    directionAngle.y += 0.01f;
-    this->gameObject.lock()->transform.lock()->rotation = glm::vec3(directionAngle.x,
-        -directionAngle.y - 90 * D2R, 0);// * D2R
+
+    this->gameObject.lock()->transform.lock()->position = finalPosition;
+    this->gameObject.lock()->transform.lock()->rotation = finalRotation;// * D2R
 }
+
+
+void AnimationController::SetAnimator(std::shared_ptr<AssimpPacket> packet)
+{
+    this->animator = std::shared_ptr<Animator>(new Animator());
+    this->animationList = packet->model->animationList;
+}
+void AnimationController::Start()
+{
+    this->animator->SetAnimation(this->animationList[0]);
+    this->animator->isRootMove = true;
+}
+void AnimationController::Update()
+{
+    this->animator->Update(CorePipeline::deltaTime);
+}
+void AnimationController::LateUpdate()
+{
+    auto rendererList = this->gameObject.lock()->GetComponents<ModelRenderer>();
+    auto transforms = animator->GetFinalBoneMatrices();
+    
+    for (int k = 0; k < transforms.size(); ++k)
+    {
+        this->gameObject.lock()->uniformStorage->PushUniform(UniformSegment(
+            ("finalBonesMatrices[" + std::to_string(k) + "]").c_str(),
+            GL_FLOAT_MAT4).SetData(transforms[k]));
+    }
+}
+
+
+void LightComponent::Start()
+{
+    this->gameObject.lock()->transform.lock()->rotation = glm::vec3(40 * D2R, 0, 0);
+}
+
+void LightComponent::Update()
+{
+    auto directionVec4 = this->gameObject.lock()->transform.lock()->GetModelToWorldAll() * glm::vec4(0, 0, -1, 0);
+    lightDirection = glm::vec3(directionVec4.x, directionVec4.y, directionVec4.z);
+    this->gameObject.lock()->transform.lock()->rotation.y += 0.01f;
+}
+
+void LightComponent::BeforeRender()
+{
+    this->gameObject.lock()->world.lock()->uniformStorage->PushUniform(UniformSegment(
+        "_LightDirection",
+        GL_FLOAT_VEC3).SetData(lightDirection));
+    this->gameObject.lock()->world.lock()->uniformStorage->PushUniform(UniformSegment(
+        "_LightColor",
+        GL_FLOAT_VEC3).SetData(lightColor));
+    this->gameObject.lock()->world.lock()->uniformStorage->PushUniform(UniformSegment(
+        "_LightPower",
+        GL_FLOAT).SetData(lightPower));
+
+}
+
+
+void PlayerController::Start()
+{
+
+}
+
+FMOD::Channel* attackChannel;
+void PlayerController::Update()
+{
+    std::shared_ptr<Transform> cameraTrans = this->gameObject.lock()->world.lock()->mainCameraObject.lock()->transform.lock();
+    glm::vec4 cameraForward = cameraTrans->GetModelToWorldAll() * glm::vec4(0, 0, 1, 0);
+    glm::vec3 planeForward = glm::normalize(glm::vec3(cameraForward.x, 0.0f, cameraForward.z));
+    glm::vec3 planeRight = glm::cross(planeForward, glm::vec3(0, 1, 0));
+    
+
+    if (CorePipeline::GetKeyDown('w'))
+    {
+        auto findIndex = find(keyStack.begin(), keyStack.end(), 'w');
+        if (findIndex == keyStack.end())
+            keyStack.push_back('w');
+    }
+    if (CorePipeline::GetKeyDown('s'))
+    {
+        auto findIndex = find(keyStack.begin(), keyStack.end(), 's');
+        if (findIndex == keyStack.end())
+            keyStack.push_back('s');
+    }
+    if (CorePipeline::GetKeyDown('a'))
+    {
+        auto findIndex = find(keyStack.begin(), keyStack.end(), 'a');
+        if (findIndex == keyStack.end())
+        keyStack.push_back('a');
+    }
+    if (CorePipeline::GetKeyDown('d'))
+    {
+        auto findIndex = find(keyStack.begin(), keyStack.end(), 'd');
+        if (findIndex == keyStack.end())
+            keyStack.push_back('d');
+    }
+
+    if (CorePipeline::GetKeyUp('w') || (!CorePipeline::GetKey('w')))
+    {
+        auto findIndex = find(keyStack.begin(), keyStack.end(), 'w');
+        if (findIndex != keyStack.end())
+            keyStack.erase(find(keyStack.begin(), keyStack.end(), 'w'));
+    }
+    if (CorePipeline::GetKeyUp('s') || (!CorePipeline::GetKey('s')))
+    {
+        auto findIndex = find(keyStack.begin(), keyStack.end(), 's');
+        if (findIndex != keyStack.end())
+            keyStack.erase(find(keyStack.begin(), keyStack.end(), 's'));
+    }
+    if (CorePipeline::GetKeyUp('a') || (!CorePipeline::GetKey('a')))
+    {
+        auto findIndex = find(keyStack.begin(), keyStack.end(), 'a');
+        if (findIndex != keyStack.end())
+            keyStack.erase(find(keyStack.begin(), keyStack.end(), 'a'));
+    }
+    if (CorePipeline::GetKeyUp('d') || (!CorePipeline::GetKey('d')))
+    {
+        auto findIndex = find(keyStack.begin(), keyStack.end(), 'd');
+        if(findIndex != keyStack.end())
+            keyStack.erase(find(keyStack.begin(), keyStack.end(), 'd'));
+    }
+
+    bool anyMoveDown = CorePipeline::GetKeyDown('w')
+        || CorePipeline::GetKeyDown('s')
+        || CorePipeline::GetKeyDown('a')
+        || CorePipeline::GetKeyDown('d');
+    bool anyMove = CorePipeline::GetKey('w')
+        || CorePipeline::GetKey('s')
+        || CorePipeline::GetKey('a')
+        || CorePipeline::GetKey('d');
+    bool allMoveUp = (CorePipeline::GetKeyUp('w')
+        || CorePipeline::GetKeyUp('s')
+        || CorePipeline::GetKeyUp('a')
+        || CorePipeline::GetKeyUp('d')) && (keyStack.size() == 0);
+    bool slidingDown = CorePipeline::GetKeySpecDown(GLUT_KEY_SHIFT_L);
+
+    bool attackLeft = CorePipeline::GetMouseDown(GLUT_LEFT_BUTTON);
+    if (attackLeft && attackCycle >= attackTime)
+    {
+        attackCycle = 0;
+    }
+    else
+        attackLeft = false;
+    
+    glm::vec3 finalMoveDirecion = glm::vec3(0, 0, 0);
+    //cameraTrans->rotation.y;
+    for (int i = 0; i < keyStack.size(); i++)
+    {
+        if (keyStack[i] == 'w')
+            finalMoveDirecion += planeForward;
+        if (keyStack[i] == 's')
+            finalMoveDirecion -= planeForward;
+        if (keyStack[i] == 'd')
+            finalMoveDirecion += planeRight;
+        if (keyStack[i] == 'a')
+            finalMoveDirecion -= planeRight;
+    }
+
+    turnStart = false;
+    int lastCount = 0;
+    if (keyStack.size() != 0)
+    {
+        bool keyW = false;
+        bool keyD = false;
+        
+        beforeAngle = finalAngle;
+        finalAngle = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            int nowIndex = keyStack.size() - i - 1;
+            if (nowIndex < 0)
+                break;
+            if (keyStack[nowIndex] == 'w')
+            {
+                if (keyD)
+                    finalAngle += 360 + 360;
+                else
+                    finalAngle += 360;
+                keyW = true;
+            }
+            if (keyStack[nowIndex] == 's')
+                finalAngle += 360 + 180;
+            if (keyStack[nowIndex] == 'd')
+            {
+                keyD = true;
+                if (keyW)
+                    finalAngle += 360 - 90;
+                else
+                    finalAngle += 360 + 270;
+            }
+            if (keyStack[nowIndex] == 'a')
+                finalAngle += 360 + 90;
+            lastCount++;
+        }
+    }
+    
+    if(lastCount != 0)
+        finalAngle = (finalAngle / lastCount) * D2R + cameraTrans->rotation.y;
+
+    glm::vec3 targetAngleVector = glm::vec3(cos(finalAngle), sin(finalAngle), 0);
+    glm::vec3 smmothAngleVector = glm::vec3(cos(smoothAngle), sin(smoothAngle), 0);
+    auto deltaAngle = acos(Max(Min(glm::dot(targetAngleVector, smmothAngleVector), 0.99999f), -0.99999f));
+    auto deltaCross = glm::cross(targetAngleVector, smmothAngleVector);
+
+    auto deltaSign = (deltaCross.x + deltaCross.y + deltaCross.z) < 0 ? -1.0f : 1.0f;
+    delta = deltaAngle * deltaSign;
+    if (!attack)
+    {
+        if (abs(delta) >= 130 * D2R)
+        {
+            currentAngle = finalAngle + 180 * D2R;
+            turnStart = true;
+            turn = true;
+        }
+        else if (turn && abs(delta) <= 90 * D2R)
+        {
+            currentAngle = smoothAngle + 180 * D2R;
+        }
+    }
+    else
+        currentAngle = smoothAngle = finalAngle;
+    
+    if (sliding || attack)
+        finalMoveDirecion = glm::vec3(cos(-currentAngle + 90 * D2R), 0, sin(-currentAngle + 90 * D2R));
+
+
+    float animSpeed = 0.8f;
+    if (auto anim = this->gameObject.lock()->GetComponent<AnimationController>().lock())
+    {
+        if (animState == Player_Idle)
+        {
+            if (anyMoveDown || anyMove)
+            {
+                anim->animator->SetAnimation(anim->animationList[7]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_WalkStart;
+                currentAngle = smoothAngle = finalAngle;
+                turn = false;
+                turnStart = false;
+            }
+            if (slidingDown)
+            {
+                anim->animator->SetAnimation(anim->animationList[6]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_Sliding;
+                sliding = true;
+            }
+            if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[32]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_1;
+                currentAngle = smoothAngle = finalAngle;
+                turn = false;
+                turnStart = false;
+            }
+        }
+        else if (animState == Player_WalkStart)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[4]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = true;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_Walk;
+            }
+            if (allMoveUp)
+            {
+                anim->animator->SetAnimation(anim->animationList[12]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_WalkEnd;
+            }
+            if (turnStart)
+            {
+                anim->animator->SetAnimation(anim->animationList[10]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_Turn;
+            }
+            if (slidingDown)
+            {
+                anim->animator->SetAnimation(anim->animationList[48]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_Sliding;
+                sliding = true;
+            }
+            if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[11]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_1;
+
+                bool isPlay = false;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_Walk)
+        {
+            if (allMoveUp)
+            {
+                anim->animator->SetAnimation(anim->animationList[5]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_WalkEnd;
+            }
+            if (turnStart)
+            {
+                anim->animator->SetAnimation(anim->animationList[10]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_Turn;
+            }
+            if (slidingDown)
+            {
+                anim->animator->SetAnimation(anim->animationList[48]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_Sliding;
+                sliding = true;
+            }
+            if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[11]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_1;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_WalkEnd)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[0]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = true;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_Idle;
+            }
+            if (anyMoveDown)
+            {
+                anim->animator->SetAnimation(anim->animationList[7]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_WalkStart;
+            }
+            if (turnStart)
+            {
+                anim->animator->SetAnimation(anim->animationList[10]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_Turn;
+            }
+            if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[23]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_1;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_Turn)
+        {
+            if (turnStart)
+            {
+                anim->animator->SetAnimation(anim->animationList[10]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_Turn;
+            }
+            if (allMoveUp)
+            {
+                anim->animator->SetAnimation(anim->animationList[5]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_WalkEnd;
+                turn = false;
+            }
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[4]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = true;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_Walk;
+                turn = false;
+            }
+            if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[23]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_1;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_Sliding)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[0]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = true;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_Idle;
+                sliding = false;
+            }
+            if (anyMoveDown)
+            {
+                anim->animator->SetAnimation(anim->animationList[7]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = Player_WalkStart;
+                sliding = false;
+            }
+            if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[23]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_1;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_Atack_1)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[24]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = false;
+                animState = Player_Atack_1_End;
+                
+            }
+            else if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[26]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_2;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+                
+            }
+        }
+        else if (animState == Player_Atack_1_End)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[0]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = true;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = false;
+                animState = Player_Idle;
+            }
+            else if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[26]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_2;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_Atack_2)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[31]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = false;
+                animState = Player_Atack_2_End;
+            }
+            else if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[23]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_3;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_Atack_2_End)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[0]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = true;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = false;
+                animState = Player_Idle;
+            }
+            else if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[23]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_3;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_Atack_3)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[30]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = false;
+                animState = Player_Atack_3_End;
+            }
+            else if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[27]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_4;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+            }
+        else if (animState == Player_Atack_3_End)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[0]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = true;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = false;
+                animState = Player_Idle;
+            }
+            else if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[27]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_4;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_Atack_4)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[28]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = false;
+                animState = Player_Atack_4_End;
+            }
+            else if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[33]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_5;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_Atack_4_End)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[0]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = true;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = false;
+                animState = Player_Idle;
+            }
+            else if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[33]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_5;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_Atack_5)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[39]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = false;
+                animState = Player_Atack_5_End;
+            }
+            else if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[23]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_3;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+        else if (animState == Player_Atack_5_End)
+        {
+            if (anim->animator->isPlayEnd)
+            {
+                anim->animator->SetAnimation(anim->animationList[0]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = true;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = false;
+                animState = Player_Idle;
+            }
+            else if (attackLeft)
+            {
+                anim->animator->SetAnimation(anim->animationList[23]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                attack = true;
+                animState = Player_Atack_3;
+                CorePipeline::soundSystem->playSound(CorePipeline::GetSound(music_attack), 0, false, &attackChannel);
+                attackChannel->setVolume(0.8);
+            }
+        }
+
+        attackCycle += CorePipeline::deltaTime;
+        smoothAngle -= delta * 0.2f * CorePipeline::deltaTime * 60.0f;
+        if (!turn)
+            currentAngle = smoothAngle;
+
+        auto nowPos = glm::vec3(anim->animator->rootPosition.x, 0, anim->animator->rootPosition.z);
+        //auto deltaPos = (nowPos - prevAnimPos);
+        auto deltaPos = glm::vec3(anim->animator->rootDeltaPosition.x, 0, anim->animator->rootDeltaPosition.z);
+        this->gameObject.lock()->transform.lock()->position += finalMoveDirecion * glm::distance(glm::vec3(0, 0, 0), deltaPos);
+        this->gameObject.lock()->transform.lock()->rotation = glm::vec3(0, currentAngle, 0);
+        prevAnimPos = nowPos;
+    }
+}
+
+void EnemyGiantController::Start()
+{
+    auto anim = this->gameObject.lock()->GetComponent<AnimationController>().lock();
+    anim->animator->SetAnimation(anim->animationList[29]);
+    anim->animator->isRootMove = false;
+    anim->animator->isLoop = true;
+    anim->animator->Reset();
+    anim->animator->Play();
+
+}
+void EnemyGiantController::Update()
+{
+
+    glm::vec3 finalMoveDirecion = glm::vec3(0, 0, 0);
+
+    auto target = this->targetObject.lock();
+    auto anim = this->gameObject.lock()->GetComponent<AnimationController>().lock();
+    if(target)
+    {
+        auto trans = this->gameObject.lock()->transform.lock();
+        auto targetTrans = target->transform.lock();
+
+        finalMoveDirecion = glm::normalize(targetTrans->position - trans->position);
+
+        //glm::vec3 targetAngleVector = glm::vec3(finalMoveDirecion.x, finalMoveDirecion.y, 0);//finalMoveDirecion.x, finalMoveDirecion.z, 0);
+        //glm::vec3 smmothAngleVector = glm::vec3(cos(smoothAngle), sin(smoothAngle), 0);
+        //auto deltaAngle = acos(Max(Min(glm::dot(targetAngleVector, smmothAngleVector), 0.99999f), -0.99999f));
+        //auto deltaCross = glm::cross(targetAngleVector, smmothAngleVector);
+
+        //auto deltaSign = (deltaCross.x + deltaCross.y + deltaCross.z) < 0 ? -1.0f : 1.0f;
+        //delta = deltaAngle * deltaSign;
+
+        currentAngle = (-atan2(finalMoveDirecion.z, finalMoveDirecion.x) + 90*D2R);
+
+        float animSpeed = 1.0f;
+
+        if (animState == EnemyGiant_Idle)
+        {
+
+            if (glm::distance(targetTrans->position, trans->position) <= 8)
+            {
+                anim->animator->SetAnimation(anim->animationList[32]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = true;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = EnemyGiant_Walk;
+                walk = true;
+            }
+
+        }
+        else if (animState == EnemyGiant_Walk)
+        {
+
+            if (glm::distance(targetTrans->position, trans->position) > 15)
+            {
+                anim->animator->SetAnimation(anim->animationList[29]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = true;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = EnemyGiant_Idle;
+                walk = false;
+            }
+            if (glm::distance(targetTrans->position, trans->position) < 3)
+            {
+                anim->animator->SetAnimation(anim->animationList[19]);
+                anim->animator->isRootMove = false;
+                anim->animator->isLoop = false;
+                anim->animator->Reset();
+                anim->animator->Play();
+                anim->animator->animSpeedPer = animSpeed;
+                animState = EnemyGiant_Attack;
+                walk = false;
+            }
+
+        }
+        else if (animState == EnemyGiant_Attack)
+        {
+            if(anim->animator->isPlayEnd)
+            {
+                if (glm::distance(targetTrans->position, trans->position) <= 15)
+                {
+                    anim->animator->SetAnimation(anim->animationList[32]);
+                    anim->animator->isRootMove = false;
+                    anim->animator->isLoop = true;
+                    anim->animator->Reset();
+                    anim->animator->Play();
+                    anim->animator->animSpeedPer = animSpeed;
+                    animState = EnemyGiant_Walk;
+                    walk = true;
+                }
+                else
+                {
+                    anim->animator->SetAnimation(anim->animationList[29]);
+                    anim->animator->isRootMove = false;
+                    anim->animator->isLoop = true;
+                    anim->animator->Reset();
+                    anim->animator->Play();
+                    anim->animator->animSpeedPer = animSpeed;
+                    animState = EnemyGiant_Idle;
+                    walk = false;
+                }
+            }
+
+        }
+        attackCycle += CorePipeline::deltaTime;
+        smoothAngle -= delta * 0.2f * CorePipeline::deltaTime * 60.0f;
+
+        auto nowPos = glm::vec3(anim->animator->rootPosition.x, 0, anim->animator->rootPosition.z);
+        //auto deltaPos = (nowPos - prevAnimPos);
+        auto deltaPos = glm::vec3(anim->animator->rootDeltaPosition.x, 0, anim->animator->rootDeltaPosition.z);
+        if(isnan(this->gameObject.lock()->transform.lock()->position.x))
+            this->gameObject.lock()->transform.lock()->position = glm::vec3(0, 0, 0);
+        else
+            this->gameObject.lock()->transform.lock()->position += finalMoveDirecion *glm::distance(glm::vec3(0, 0, 0), deltaPos);
+        this->gameObject.lock()->transform.lock()->rotation = glm::vec3(0, currentAngle, 0);
+        prevAnimPos = nowPos;
+    }
+}
+
+void FaceSDFComponent::Start()
+{
+
+}
+void FaceSDFComponent::Update()
+{
+
+}
+void FaceSDFComponent::BeforeRender()
+{
+    glm::vec3 forward = this->gameObject.lock()->transform.lock()->GetModelToWorldAll() * glm::vec4(0, 0, 1, 0);
+    this->material->uniformStorage->PushUniform(UniformSegment("_WorldForward", GL_FLOAT_VEC3).SetData(glm::vec3(forward.x, forward.y, forward.z)));
+    this->material->uniformStorage->PushUniform(UniformSegment("_WorldRight", GL_FLOAT_VEC3).SetData(glm::cross(glm::vec3(forward.x, forward.y, forward.z), glm::vec3(0, 1, 0))));
+}
+
 
 
 GLvoid drawScene(GLvoid);
@@ -3260,7 +4339,11 @@ void Keyboard(int key, bool spec, int state, int x, int y);
 
 //----new system----
 Shader testShader;
+Shader skyShader;
 Shader animShader;
+Shader animFaceShader;
+Shader backgroundShader;
+
 ModelInfo* testModel;
 Material* testMaterial;
 RenderData* testRenderData;
@@ -3283,13 +4366,8 @@ std::shared_ptr<World> world;
 
 std::shared_ptr<GameObject> A;
 std::shared_ptr<GameObject> B;
-std::shared_ptr<GameObject> C;
+std::shared_ptr<GameObject> Player;
 
-float mouseX = 0;
-float mouseY = 0;
-float angleX = 0;
-float angleY = 0;
-bool pushZ = false;
 
 int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정 { //--- 윈도우 생성하기
 {
@@ -3306,7 +4384,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
 #endif
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_MULTISAMPLE | GLUT_DEPTH); // 디스플레이 모드 설정
-    glutInitWindowPosition(310, 180); // 윈도우의 위치 지정
+    glutInitWindowPosition(0, 0); // 윈도우의 위치 지정
     glutInitWindowSize(CorePipeline::screenW, CorePipeline::screenH); // 윈도우의 크기 지정
     //glutFullScreen();
     glutCreateWindow("GLEW_1"); // 윈도우 생성
@@ -3323,6 +4401,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
 
     //----------------------------------------------------
 
+    CorePipeline::GameInit();
 
     errorShader = CreateShaderProgram(
         CompileShader(LoadShader("./Shaders/gl_Error_Vert.glsl"), GL_VERTEX_SHADER),
@@ -3334,12 +4413,28 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
         CompileShader(LoadShader("./Shaders/gl_vertex.glsl"), GL_VERTEX_SHADER),
         CompileShader(LoadShader("./Shaders/gl_fragment.glsl"), GL_FRAGMENT_SHADER));
     
+    skyShader = CreateShaderProgram(
+        CompileShader(LoadShader("./Shaders/gl_sky_vertex.glsl"), GL_VERTEX_SHADER),
+        CompileShader(LoadShader("./Shaders/gl_sky_fragment.glsl"), GL_FRAGMENT_SHADER));
+    
     animShader = CreateShaderProgram(
         CompileShader(LoadShader("./Shaders/gl_Anim_vertex.glsl"), GL_VERTEX_SHADER),
         CompileShader(LoadShader("./Shaders/gl_Anim_fragment.glsl"), GL_FRAGMENT_SHADER));
 
+    animFaceShader = CreateShaderProgram(
+        CompileShader(LoadShader("./Shaders/gl_Anim_Face_vertex.glsl"), GL_VERTEX_SHADER),
+        CompileShader(LoadShader("./Shaders/gl_Anim_Face_fragment.glsl"), GL_FRAGMENT_SHADER));
+
+    backgroundShader = CreateShaderProgram(
+        CompileShader(LoadShader("./Shaders/gl_Background_vertex.glsl"), GL_VERTEX_SHADER),
+        CompileShader(LoadShader("./Shaders/gl_Background_fragment.glsl"), GL_FRAGMENT_SHADER));
+
     splitLine();
 
+
+    CorePipeline::SoundLoading(music_BGM1, ".\\Sounds\\BGM1.mp3");
+    CorePipeline::SoundLoading(music_BGM2, ".\\Sounds\\BGM2.mp3");
+    CorePipeline::SoundLoading(music_attack, ".\\Sounds\\attack.mp3");
 
     world = std::shared_ptr<World>(new World());
     world->Init();
@@ -3351,164 +4446,217 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     uniform mat4 matrix_View; // world -> view
     uniform mat4 matrix_Projection; // view -> clip
     */
-    int textureId = (int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Hair_Diffuse.png");
-    testMaterial = new Material(&animShader);
-    testMaterial->drawType = GL_TRIANGLES;
-    testMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData(textureId));
-
-    auto testBodyMaterial = new Material(&animShader);
-    testBodyMaterial->drawType = GL_TRIANGLES;
-    testBodyMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Body_Diffuse.png")));
     
-    auto testFaceMaterial = new Material(&animShader);
-    testFaceMaterial->drawType = GL_TRIANGLES;
-    testFaceMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch_Tex_Face_Diffuse.png")));
 
+    std::shared_ptr<AssimpPacket> packetSky = Loader::ModelLoad(Loader::GetAssimpPacket("Sky"), "./Models/Objs/Cube.obj");
+    model = Model::ProcessModel(packetSky);
+    ModelTexture skyTexture;
+    skyTexture.id = LoadTextureImage("./Models/CubeMap.png");
+    model->modelTextureList.push_back(skyTexture);
+    Material* skyMaterial = new Material(&skyShader);
+    skyMaterial->para_cullingFace = GL_FRONT;
+    skyMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)skyTexture.id));
+
+    auto skyModelInfo = Loader::ConvertModelToModelDatas(model)[0];
+    auto skyObject = world->CreateGameObject("Sky").lock();
+    auto skyRenderer = skyObject->AddComponent<ModelRenderer>(new ModelRenderer());
+    skyRenderer.lock()->AddMaterialModel(skyMaterial, skyModelInfo.get());
+    skyObject->transform.lock()->scale = glm::vec3(1000, 1000, 1000);
+
+
+
+    std::shared_ptr<AssimpPacket> packetWorld = Loader::ModelLoad2(Loader::GetAssimpPacket("Back"), "./Models/World/AllJapanStreet.fbx");
+    model = Model::ProcessModel(packetWorld);
     
-    Assimp::Importer importer;
-    const aiScene* pScene = importer.ReadFile("./Models/Klee/Avatar_Loli_Catalyst_KleeCostumeWitch.fbx",
-        aiProcess_Triangulate |
-        aiProcess_GenSmoothNormals |
-        //aiProcess_GenNormals |
-        aiProcess_OptimizeMeshes |// 매쉬 다 합치는거
-        //aiProcess_SplitLargeMeshes // 매쉬가 너무 클때 쪼개는거
-        //aiProcess_ImproveCacheLocality | 삼각형 개선. 잘 되면 켜보기
-        //aiProcess_GenUVCoords | UV없으면 UV 계산하게[ 시키기
-        //aiProcess_Debone | 손실없이 뼈 제거.
-        aiProcess_FlipUVs |
-        aiProcess_JoinIdenticalVertices |
-        aiProcess_CalcTangentSpace |
-        aiProcess_SortByPType);
+    //ModelTexture skyTexture;
+    //skyTexture.id = LoadTextureImage("./Models/CubeMap.png");
+    //model->modelTextureList.push_back(skyTexture);
+    //skyMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)skyTexture.id));
 
-    NormalLog(std::cerr, "Try") << "Mesh Load - Klee (mesh count)" << pScene->mNumMeshes << "\n";
-    /* fast 퀄리티
-    aiProcess_CalcTangentSpace              |  \
-        aiProcess_GenNormals                    |  \
-        aiProcess_JoinIdenticalVertices |  \
-        aiProcess_Triangulate                   |  \
-        aiProcess_GenUVCoords           |  \
-        aiProcess_SortByPType           |  \
-        0
-    */
-    /* 왼손으로 변환
-    ( \
-        aiProcess_MakeLeftHanded     | \
-        aiProcess_FlipUVs            | \
-        aiProcess_FlipWindingOrder   | \
-        0 )
-    */
-    /*max 퀄리티
-    ( \
-        aiProcessPreset_TargetRealtime_Quality   |  \
-        aiProcess_FindInstances                  |  \
-        aiProcess_ValidateDataStructure          |  \
-        aiProcess_OptimizeMeshes                 |  \
-        aiProcess_Debone                                                 |  \
-        0 )
-    */
-
-
-    //testModel = new ModelInfo();
-    //testModel->Init();
-    //testModel->SetIndexBuffer(testIndexs, sizeof(testIndexs));
-    //testModel->SetArrayCount(3);
-    //testModel->SetBufferData("positionOS", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 0); // todo : 이부분 다시 체크 3* sizeof(float)로
-    //testModel->SetBufferData("vertexColor", testTotalVertexBuffer, sizeof(testTotalVertexBuffer), 8 * sizeof(float), 4 * sizeof(float));
-
-    /*
-    float* meshVertexBuffer;
-    unsigned int* meshIndexBuffer;
-    std::vector<unsigned int> meshIndexList;
-    std::vector<float> meshVertexList;
-
-    A = world->CreateGameObject().lock();
-    for (int k = 0; k < pScene->mNumMeshes; k++)//pScene->mNumMeshes
+    auto backModelInfo = Loader::ConvertModelToModelDatas(model);
+    auto backObject = world->CreateGameObject("Back").lock();
+    for (int i = 0; i < backModelInfo.size(); i++)
     {
-        for (unsigned int i = 0; i < pScene->mMeshes[k]->mNumVertices; ++i)
-        {
-            meshVertexList.push_back((pScene->mMeshes[k]->mVertices[i]).x);
-            meshVertexList.push_back((pScene->mMeshes[k]->mVertices[i]).y);
-            meshVertexList.push_back((pScene->mMeshes[k]->mVertices[i]).z);
-            meshVertexList.push_back(1.0f);
-            meshVertexList.push_back((pScene->mMeshes[k]->mNormals[i]).x);
-            meshVertexList.push_back((pScene->mMeshes[k]->mNormals[i]).y);
-            meshVertexList.push_back((pScene->mMeshes[k]->mNormals[i]).z);
-            meshVertexList.push_back(1.0f);
-            meshVertexList.push_back((pScene->mMeshes[k]->mTextureCoords[0][i]).x);
-            meshVertexList.push_back((pScene->mMeshes[k]->mTextureCoords[0][i]).y);
-        }
-        for (unsigned int i = 0; i < pScene->mMeshes[k]->mNumFaces; ++i)
-        {
-            auto face = pScene->mMeshes[k]->mFaces[i];
-            for (int j = 0; j < face.mNumIndices; j++)
-                meshIndexList.push_back((face.mIndices[j]));
-        }
-        meshVertexBuffer = new float[(int)meshVertexList.size()]();
-        meshIndexBuffer = new unsigned int[(int)meshIndexList.size()]();
+        auto backRenderer = backObject->AddComponent<ModelRenderer>(new ModelRenderer());
+        Material* backMaterial = new Material(&backgroundShader);
 
-        int meshIndex = 0;
-        for (int i = 0; i < (int)meshIndexList.size(); i++)
-            meshIndexBuffer[meshIndex++] = meshIndexList[i];
-        meshIndex = 0;
-        for (int i = 0; i < (int)meshVertexList.size(); i++)
-            meshVertexBuffer[meshIndex++] = meshVertexList[i];
-        ModelInfo2* m = new ModelInfo2({
-            { std::shared_ptr<void>(meshVertexBuffer), (int)(meshVertexList.size()), GL_FLOAT, {{"positionOS", 4}, {"vertexColor", 4}, {"uv0", 2} } },
-            { std::shared_ptr<void>(meshIndexBuffer), (int)(meshIndexList.size()), GL_UNSIGNED_INT, {{"vertexIndex", 1}}}
-            });
-        if (k == 0)
+        
+        int materialIndex = -1;
+        if ((materialIndex = model->meshList[i]->materialIndex) != -1)
         {
-            auto modelRenderer1 = A->AddComponent<ModelRenderer>(new ModelRenderer);
-            modelRenderer1.lock()->AddMaterialModel(testMaterial, m);
+            aiString path;
+            if (packetWorld->scene->mMaterials[materialIndex]->GetTexture(aiTextureType_DIFFUSE, 0, &path) == AI_SUCCESS)
+            {
+                std::string finalPath = std::string(path.C_Str());
+                int index;
+                while ((index = finalPath.find(std::string("\\"))) != std::string::npos)
+                    finalPath = finalPath.replace(index, 1, std::string("/"));
+                std::cout << "Path : " << std::string("./Models/World/") + finalPath << "\n";
+                backMaterial->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage((std::string("./Models/World/") + finalPath).c_str())));
+            }
+            if (packetWorld->scene->mMaterials[materialIndex]->GetTexture(aiTextureType_NORMALS, 0, &path) == AI_SUCCESS)
+            {
+                std::string finalPath = std::string(path.C_Str());
+                int index;
+                while ((index = finalPath.find(std::string("\\"))) != std::string::npos)
+                    finalPath = finalPath.replace(index, 1, std::string("/"));
+                std::cout << "Path : " << std::string("./Models/World/") + finalPath << "\n";
+                backMaterial->uniformStorage->PushUniform(UniformSegment("_NormalTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage((std::string("./Models/World/") + finalPath).c_str())));
+            }
         }
-        if (k == 1)
-        {
-            auto modelRenderer1 = A->AddComponent<ModelRenderer>(new ModelRenderer);
-            modelRenderer1.lock()->AddMaterialModel(testBodyMaterial, m);
-        }
-        //if (k == 5)
-        //    klee.push_back(new RenderData(testFaceMaterial, m));
-        if (k == 3 || k == 6 || k == 7)
-        {
-            auto modelRenderer1 = A->AddComponent<ModelRenderer>(new ModelRenderer);
-            modelRenderer1.lock()->AddMaterialModel(testFaceMaterial, m);
-        }
-        //else if (k == 4 || k == 5)
-        //    klee.push_back(new RenderData(testFaceMaterial, m));
-        //else
-        //    klee.push_back(new RenderData(testMaterial, m));
-        meshIndexList.clear();
-        meshVertexList.clear();
+        else
+            std::cout << "Not Material" << "\n";
+        backRenderer.lock()->AddMaterialModel(backMaterial, backModelInfo[i].get());
     }
-    */
+    backObject->transform.lock()->scale = glm::vec3(0.014, 0.014, 0.014);
+
+    
+    
+    std::shared_ptr<AssimpPacket> packet = Loader::ModelLoad(Loader::GetAssimpPacket("Anbi"), "./Models/Anbi/Avatar_Female_Size02_Anbi.fbx");
+    model = Model::ProcessModel(packet);
+    ModelTexture anbiTexture;
+
+    anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Body_D.png");
+    model->modelTextureList.push_back(anbiTexture);
+
+    anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Face_D.png");
+    model->modelTextureList.push_back(anbiTexture);
+
+    anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Hair_D.png");
+    model->modelTextureList.push_back(anbiTexture);
+
+    anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Weapon_D.png");
+    model->modelTextureList.push_back(anbiTexture);
+
+    anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Body_N.png");
+    model->modelTextureList.push_back(anbiTexture);
+
+    anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Hair_N.png");
+    model->modelTextureList.push_back(anbiTexture);
+
+    anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Weapon_N.png");
+    model->modelTextureList.push_back(anbiTexture);
+
+    anbiTexture.id = LoadTextureImage("./Models/Anbi/Female_Face_lightmap.png");
+    model->modelTextureList.push_back(anbiTexture);
 
 
-    Assimp::Importer aiImporter;
-    std::shared_ptr<aiScene> aiScene;
-    aiScene = Loader::ModelLoad("./Models/Anbi/Avatar_Female_Size02_Anbi.fbx", aiImporter);
-    model = Model::processModel(aiScene);
-    animator = std::shared_ptr<Animator>(new Animator(model->animationList[33]));
-    animator->Update(CorePipeline::deltaTime);
+    auto list = Loader::ConvertModelToModelDatas(model);
 
-    auto list = Loader::ConvertModelToModelDatas(model, aiScene);
+    auto light = world->CreateGameObject("MainLight").lock();
+    auto lightComponent = light->AddComponent<LightComponent>(new LightComponent());
 
-
-    C = world->CreateGameObject("Anbi").lock();
+    Player = world->CreateGameObject("Anbi").lock();
+    Player->AddComponent<PlayerController>(new PlayerController());
+    auto animationController = Player->AddComponent<AnimationController>(new AnimationController());
+    animationController.lock()->SetAnimator(Loader::GetAssimpPacket("Anbi"));
+    auto SDFController = Player->AddComponent<FaceSDFComponent>(new FaceSDFComponent());
+    //1
     for (int i = 0; i < list.size(); i++)
     {
-        B = world->CreateGameObject().lock();
-        auto modelRenderer1 = B->AddComponent<ModelRenderer>(new ModelRenderer);
-        Material* material = new Material(&animShader);
-        material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData(textureId));
-        modelRenderer1.lock()->AddMaterialModel(material, list[i].get());
-        B->transform.lock()->rotation = glm::vec3(0, 0, 0);
-        B->SetParent(C);
+        auto modelRenderer = Player->AddComponent<ModelRenderer>(new ModelRenderer());
+        Material* material = nullptr;
+        if (i == 0)
+        {
+            material = new Material(&animShader);
+            material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[0].id));
+            material->uniformStorage->PushUniform(UniformSegment("_NormalTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[4].id));
+            material->para_culling = false;
+        }
+        if (i == 2)
+        {
+            material = new Material(&animFaceShader);
+            material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[1].id));
+            material->uniformStorage->PushUniform(UniformSegment("_SDFTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[7].id));
+            SDFController.lock()->material = material;
+            //animFaceShader
+        }
+        if (i == 3)
+        {
+            material = new Material(&animShader);
+            material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[1].id));
+        }
+        if (i == 4)
+        {
+            material = new Material(&animShader);
+            material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[2].id));
+            material->uniformStorage->PushUniform(UniformSegment("_NormalTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[5].id));
+        }
+        if (i == 6)
+        {
+            material = new Material(&animShader);
+            material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[3].id));
+            material->uniformStorage->PushUniform(UniformSegment("_NormalTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[6].id));
+        }
+        if (i == 7)
+        {
+            material = new Material(&animShader);
+            material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[3].id));
+            material->uniformStorage->PushUniform(UniformSegment("_NormalTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[6].id));
+        }
+        if (i == 8)
+        {
+            material = new Material(&animShader);
+            material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[3].id));
+        }
+
+        if(i != 1 && i != 5)
+            modelRenderer.lock()->AddMaterialModel(material, list[i].get());
         //if(list[i]->)
     }
 
+    
+    packet = Loader::ModelLoad(Loader::GetAssimpPacket("Giant"), "./Models/Giant/Monster_Giant.fbx");
+    model = Model::ProcessModel(packet);
+    list = Loader::ConvertModelToModelDatas(model);
+
+    auto Enemy = world->CreateGameObject("Giant").lock();
+    auto enemyCompo = Enemy->AddComponent<EnemyGiantController>(new EnemyGiantController());
+    enemyCompo.lock()->targetObject = Player;
+    animationController = Enemy->AddComponent<AnimationController>(new AnimationController());
+    animationController.lock()->SetAnimator(Loader::GetAssimpPacket("Giant"));
+    Enemy->transform.lock()->position = glm::vec3(13, 0, 0);
+    //1
+    for (int i = 0; i < list.size(); i++)
+    {
+        auto modelRenderer = Enemy->AddComponent<ModelRenderer>(new ModelRenderer());
+        Material* material = nullptr;
+        
+        material = new Material(&animShader);
+        material->para_culling = false;
+        
+        int materialIndex = -1;
+        if ((materialIndex = model->meshList[i]->materialIndex) != -1)
+        {
+            aiString path;
+            if (packet->scene->mMaterials[materialIndex]->GetTexture(aiTextureType_DIFFUSE, 0, &path) == AI_SUCCESS)
+            {
+                std::string finalPath = std::string(path.C_Str());
+                int index;
+                while ((index = finalPath.find(std::string("\\"))) != std::string::npos)
+                    finalPath = finalPath.replace(index, 1, std::string("/"));
+                std::cout << "Path : " << std::string("./Models/Giant/") + finalPath << "\n";
+                material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage((std::string("./Models/Giant/") + finalPath).c_str())));
+            }
+            if (packet->scene->mMaterials[materialIndex]->GetTexture(aiTextureType_NORMALS, 0, &path) == AI_SUCCESS)
+            {
+                std::string finalPath = std::string(path.C_Str());
+                int index;
+                while ((index = finalPath.find(std::string("\\"))) != std::string::npos)
+                    finalPath = finalPath.replace(index, 1, std::string("/"));
+                std::cout << "Path : " << std::string("./Models/Giant/") + finalPath << "\n";
+                material->uniformStorage->PushUniform(UniformSegment("_NormalTex", GL_SAMPLER_2D).SetData((int)LoadTextureImage((std::string("./Models/Giant/") + finalPath).c_str())));
+            }
+        }
+
+        modelRenderer.lock()->AddMaterialModel(material, list[i].get());
+    }
+    
+
     //world->mainCameraObject.lock()->transform.lock()->position = glm::vec3(0, 1.5, -2);
     auto cameraControl = world->mainCameraObject.lock()->AddComponent<CameraControl>(new CameraControl());
-    
+    cameraControl.lock()->SetTarget(Player);
+
 
     ImGUIInit();
 
@@ -3547,14 +4695,17 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
         {
             glutMainLoopEvent();
             FrameUpdate();
-
+            CorePipeline::InputBeginUpdate();
             CorePipeline::deltaTime = CorePipeline::totalTime / 1000.0f;
-
+            
             world->WorldUpdate();
-            animator->Update(CorePipeline::deltaTime);
+            //animator->Update(CorePipeline::deltaTime);
             //world->mainCameraObject.lock()->transform.lock()->rotation = glm::vec3(angleY * 1 * D2R, angleX * 1 * D2R, 0);
+            
+            CorePipeline::InputAfterUpdate();
 
             glutPostRedisplay();
+            
 
             if (CorePipeline::targetFrameLock)
                 while (CorePipeline::totalTime >= CorePipeline::targetFrameBetween)
@@ -3578,6 +4729,8 @@ GLvoid drawScene()
     glClearColor(clear_color.x, clear_color.y, clear_color.z, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT); // 설정된 색으로 전체를 칠하기
 
+    
+    //glBindFramebuffer(GL_FRAMEBUFFER, 3);
     
 
     glEnable(GL_DEPTH_TEST);
@@ -3622,13 +4775,17 @@ GLvoid drawScene()
     */
     //testRenderData->RenderingIndex();
 
+    /*
     animShader.Bind();
     auto transforms = animator->GetFinalBoneMatrices();
-    for (int i = 0; i < transforms.size(); ++i)
-        animShader.uniformStorage->PushUniform(UniformSegment(
-                ("finalBonesMatrices[" + std::to_string(i) + "]").c_str(),
-                GL_FLOAT_MAT4).SetData(transforms[i]));
 
+    for (int i = 0; i < transforms.size(); ++i)
+    {
+        animShader.uniformStorage->PushUniform(UniformSegment(
+            ("finalBonesMatrices[" + std::to_string(i) + "]").c_str(),
+            GL_FLOAT_MAT4).SetData(transforms[i]));
+    }
+    */
         //ourShader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
     world->WorldRender();
     ImGUIRender();
@@ -3659,44 +4816,25 @@ void Keyboard(int key, bool spec, int state, int x, int y)
 {
     char specKey = 0;
     if (spec)
+    {
         specKey = key - 0xffff;
+        if (state == GLUT_DOWN)
+            CorePipeline::SetKeySpecDown(specKey);
+        else
+            CorePipeline::SetKeySpecUp(specKey);
+    }
+    else
+    {
+
+        key = std::tolower(key);
+        if (state == GLUT_DOWN)
+            CorePipeline::SetKeyDown(key);
+        else
+            CorePipeline::SetKeyUp(key);
+    }
 
     switch (key) {
     case 'q':
-        //keyUp = state == GLUT_DOWN ? 1 : 0;
-        if (state == GLUT_DOWN)
-        {
-            animator->SetAnimation(model->animationList[0]);
-            animator->Reset();
-            animator->Play();
-        }
-        break;
-    case 'w':
-        //keyUp = state == GLUT_DOWN ? 1 : 0;
-        if (state == GLUT_DOWN)
-        {
-            animator->SetAnimation(model->animationList[1]);
-            animator->Reset();
-            animator->Play();
-        }
-        break;
-    case 'e':
-        //keyUp = state == GLUT_DOWN ? 1 : 0;
-        if (state == GLUT_DOWN)
-        {
-            animator->SetAnimation(model->animationList[4]);
-            animator->Reset();
-            animator->Play();
-        }
-        break;
-    case 'r':
-        //keyUp = state == GLUT_DOWN ? 1 : 0;
-        if (state == GLUT_DOWN)
-        {
-            animator->SetAnimation(model->animationList[5]);
-            animator->Reset();
-            animator->Play();
-        }
         break;
     }
     
@@ -3716,15 +4854,16 @@ void Mouse(int button, int state, int x, int y)
 {
     ImGui_ImplGLUT_MouseFunc(button, state, x, y);
     glm::vec2 mousePos = glm::vec2(((float)x / CorePipeline::screenW) * 2 - 1, (((float)y / CorePipeline::screenH) * 2 - 1) * -1);
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+
+    if (state == GLUT_DOWN)
     {
-        mouseLeftPush = true;
-        mouseX = mousePos.x;
-        mouseY = mousePos.y;
+        CorePipeline::mousePositionLastDown = mousePos;
+        CorePipeline::SetMouseDown(button);
     }
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_UP)
+    if (state == GLUT_UP)
     {
-        mouseLeftPush = false;
+        CorePipeline::mousePositionLastUp = mousePos;
+        CorePipeline::SetMouseUp(button);
     }
 }
 
@@ -3732,12 +4871,11 @@ void Motion(int x, int y)
 {
     ImGui_ImplGLUT_MotionFunc(x, y);
     glm::vec2 mousePos = glm::vec2(((float)x / CorePipeline::screenW) * 2 - 1, (((float)y / CorePipeline::screenH) * 2 - 1) * -1);
-    if (mouseLeftPush)
+    CorePipeline::mousePosition = mousePos;
+    if (CorePipeline::mouseLock && CorePipeline::mouseReset && (glm::distance(CorePipeline::mousePositionPrev, CorePipeline::mousePosition) >= (CorePipeline::mouseLockLimit-0.2f)))
     {
-        angleX += (mousePos.x - mouseX) * 100;
-        angleY += (mousePos.y - mouseY) * 100;
-        mouseX = mousePos.x;
-        mouseY = mousePos.y;
+        CorePipeline::mousePositionPrev = CorePipeline::mousePosition;
+        CorePipeline::mouseReset = false;
     }
 }
 

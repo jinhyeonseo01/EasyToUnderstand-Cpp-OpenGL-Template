@@ -8,10 +8,31 @@
  - **Simple OpenGL Image Library (SOIL)**
 
 ![img](./docs/dev_4_6.gif)
+![img](./docs/dev_6_0.gif)
 
 2023 University (한국공학대학교 2학년 2학기) Graphic OpenGL Rendering Pipeline Process Develop Project
 * * *
 # DevLog
+
+## <div align="center"> DevLog_6
+#### - Tangent Space & Normal Maping
+#### - Face SDF Shadow & CubeMap
+<details>
+    <summary>자세히</summary>
+
+![img](./docs/dev_6_0.gif)
+
+</details>
+
+## <div align="center"> DevLog_5
+#### - Bone Node 기반 Skeleton Animation
+<details>
+    <summary>자세히</summary>
+
+![img](./docs/dev_5_0.gif)
+![img](./docs/dev_5_1.gif)
+
+</details>
 
 ## <div align="center"> DevLog_4
 #### - SOIL(Image Loader) inatall inatall & Texture Mapping

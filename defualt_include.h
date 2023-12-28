@@ -9,6 +9,7 @@
 #include <Thread>
 #include <time.h>
 #include <windows.h>
+#include <WinUser.h>
 
 #include <fstream>
 
@@ -39,6 +40,11 @@
 #include <assimp/scene.h>
 
 #include "assimpEx.h"
+
+#include "fmod/fmod.hpp"
+#include "fmod/fmod_errors.h"
+
+#pragma comment(lib)
 
 // -------------
 
