@@ -26,10 +26,14 @@ out vec4 colf;
 out vec3 normalCS;
 out vec4 positionCS;
 out vec2 uv0CS;
+out mat3 matrix_TBN;
 
 void main ()
 {
 	vec4 totalPosition = vec4(0.0f);
+	vec4 totalNormal = vec4(0.0f);
+	vec4 totalTangent = vec4(0.0f);
+	vec4 totalBitangent = vec4(0.0f);
 	int i = 0;
     for(i = 0; i < MAX_BONE_INFLUENCE ; i++)
     {
@@ -38,10 +42,21 @@ void main ()
         if(int(round(boneIds[i])) >= MAX_BONES) 
         {
             totalPosition = vec4(positionOS, 1.0f);
+			totalNormal = vec4(normalOS, 0.0f);
+			totalTangent = vec4(tangent, 0.0f);
+			totalBitangent = vec4(tangent, 0.0f);
             break;
         }
         vec4 localPosition = finalBonesMatrices[int(round(boneIds[i]))] * vec4(positionOS, 1.0f);
-        totalPosition += localPosition * boneWeights[i];
+		vec4 localNormal = finalBonesMatrices[int(round(boneIds[i]))] * vec4(normalOS, 0.0f);
+		vec4 localTangent = finalBonesMatrices[int(round(boneIds[i]))] * vec4(tangent, 0.0f);
+		vec4 localBitangent = finalBonesMatrices[int(round(boneIds[i]))] * vec4(bitangent, 0.0f);
+		
+
+        totalPosition 	+= localPosition 	* boneWeights[i];
+		totalTangent 	+= localTangent 	* boneWeights[i];
+		totalNormal 	+= localNormal 		* boneWeights[i];
+		totalBitangent 	+= localBitangent 	* boneWeights[i];
         //vec3 localNormal = mat3(finalBonesMatrices[boneIds[i]]) * norm;
     }
 	if(i == 0)
@@ -49,10 +64,13 @@ void main ()
 	//positionOS = totalPosition.xyz;
 	//vec4 positionWS = matrix_ModelToWorld * vec4(positionOS, 1);
 	vec4 positionWS = matrix_ModelToWorld * totalPosition;
-	vec4 normalWS = matrix_ModelToWorld * vec4(normalOS, 0); //주의 scale값에 따라 normal에 문제생길 수도 있음.
-	vec3 bitangent = cross(normalOS, tangent);
-	positionCS = matrix_ViewProjection * positionWS;
+	vec3 normalWS = 	normalize(vec3(matrix_ModelToWorld * totalNormal));
+	vec3 bitangentWS = 	normalize(vec3(matrix_ModelToWorld * totalBitangent));
+	vec3 tangentWS = 	normalize(vec3(matrix_ModelToWorld * totalTangent));
 
+	matrix_TBN = mat3(tangentWS, bitangentWS, normalWS);
+	//vec3 bitangent = cross(normalOS, tangent);
+	positionCS = matrix_ViewProjection * positionWS;
 
 	//normal = texture(normalMap, fs_in.TexCoords).rgb;
     //normal = normalize(normal * 2.0 - 1.0); rgb [0 ~ 1] -> [-1 ~ 1]
@@ -60,6 +78,6 @@ void main ()
 	//gl_Position = matM * positionOS;
 	gl_Position = positionCS;
 	colf = vertexColor;
-	normalCS = normalOS;
+	normalCS = normalWS;
 	uv0CS = uv0;
 };

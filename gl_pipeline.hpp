@@ -6,7 +6,7 @@ float CorePipeline::screenW = 1920;
 float CorePipeline::screenH = 1080;
 
 bool CorePipeline::isDebugMode = false;
-bool CorePipeline::isEditorMode = false;
+bool CorePipeline::isEditorMode = true;
 
 bool CorePipeline::isGameExit = false;
 bool CorePipeline::targetFrameLock = true;
