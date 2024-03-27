@@ -5,10 +5,11 @@
  - **GLEW, Free GLUT, GLM**
  - **Assimp**
  - **ImGui**
- - **Simple OpenGL Image Library (SOIL)**
-[![video](http://img.youtube.com/vi/VYsvPh9Y_6E/0.jpg)](https://youtu.be/VYsvPh9Y_6E)
-![img](./docs/dev_4_6.gif)
-![img](./docs/dev_6_0.gif)
+ - **Simple OpenGL Image Library (SOIL)**  
+  
+[![video](http://img.youtube.com/vi/VYsvPh9Y_6E/0.jpg)](https://youtu.be/VYsvPh9Y_6E)  
+![img](./docs/dev_4_6.gif)  
+![img](./docs/dev_6_0.gif)  
 
 2023 University (한국공학대학교 2학년 2학기) Graphic OpenGL Rendering Pipeline Process Develop Project
 * * *
