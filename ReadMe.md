@@ -8,6 +8,8 @@
  - **Simple OpenGL Image Library (SOIL)**  
   
 [![video](http://img.youtube.com/vi/VYsvPh9Y_6E/0.jpg)](https://youtu.be/VYsvPh9Y_6E)  
+http://img.youtube.com/vi/VYsvPh9Y_6E/0.jpg  
+
 ![img](./docs/dev_4_6.gif)  
 ![img](./docs/dev_6_0.gif)  
 
