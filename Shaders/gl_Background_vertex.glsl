@@ -26,6 +26,7 @@ out vec4 colf;
 out vec3 normalCS;
 out vec4 positionCS;
 out vec2 uv0CS;
+out vec2 uv1CS;
 out mat3 matrix_TBN;
 
 void main ()
@@ -54,4 +55,5 @@ void main ()
 	colf = vertexColor;
 	normalCS = normalWS;
 	uv0CS = uv0;
+	uv1CS = uv1;
 };

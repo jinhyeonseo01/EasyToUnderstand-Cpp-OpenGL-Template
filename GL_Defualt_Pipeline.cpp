@@ -1811,10 +1811,10 @@ public:
             attributeInfos.clear();
         attributeInfos = segments;
     }
-    ModelBufferData(void* address, int size, unsigned int type, std::vector<AttributeSegment>& segments) : ModelBufferData(std::shared_ptr<void>(address), size, type, segments)
+    ModelBufferData(void* address, int size, unsigned int type, std::vector<AttributeSegment>& segments) : ModelBufferData(std::shared_ptr<void>((int*)address), size, type, segments)
     {
     }
-    ModelBufferData(void* address, int size, unsigned int type, std::vector<AttributeSegment>&& segments) : ModelBufferData(std::shared_ptr<void>(address), size, type, segments)
+    ModelBufferData(void* address, int size, unsigned int type, std::vector<AttributeSegment>&& segments) : ModelBufferData(std::shared_ptr<void>((int*)address), size, type, segments)
     {
     }
     int GetBlockCount()
@@ -2042,7 +2042,7 @@ public:
     {
         ModelBufferData resultbuffer = indexBuffer;
         resultbuffer.size = resultbuffer.size * 2;
-        resultbuffer.rawBuffer = std::shared_ptr<void>(Shader::GL_TypeToNewArray(resultbuffer.glType, resultbuffer.size));
+        resultbuffer.rawBuffer = std::shared_ptr<void>((int*)Shader::GL_TypeToNewArray(resultbuffer.glType, resultbuffer.size));
         int typeSize = Shader::GL_TypeToSizeOf(resultbuffer.glType);
 
         auto youngIndexbuffer = ((char*)resultbuffer.rawBuffer.get());
@@ -2063,8 +2063,10 @@ public:
     {
         ModelBufferData resultbuffer = indexBuffer;
         resultbuffer.size = resultbuffer.size / 2;
-        resultbuffer.rawBuffer = std::shared_ptr<void>(Shader::GL_TypeToNewArray(resultbuffer.glType, resultbuffer.size));
+        resultbuffer.rawBuffer = std::shared_ptr<void>((int*)Shader::GL_TypeToNewArray(resultbuffer.glType, resultbuffer.size));
         int typeSize = Shader::GL_TypeToSizeOf(resultbuffer.glType);
+
+        auto v = std::shared_ptr<void>(new int[3]);
 
         auto youngIndexbuffer = ((char*)resultbuffer.rawBuffer.get());
         auto oldIndexBuffer = ((char*)indexBuffer.rawBuffer.get());
@@ -2086,7 +2088,7 @@ public:
             auto dataBufferTypeSize = dataBuffers[i].typeSize;
             auto dataBufferBlockSize = dataBuffers[i].GetBlockCount();
             auto byteBlockSize = dataBufferTypeSize * dataBufferBlockSize;
-            auto newArrayBuffer = std::shared_ptr<void>(Shader::GL_TypeToNewArray(dataBuffers[i].glType, indexBuffer.size * dataBufferBlockSize));
+            auto newArrayBuffer = std::shared_ptr<void>((int*)Shader::GL_TypeToNewArray(dataBuffers[i].glType, indexBuffer.size * dataBufferBlockSize));
             auto newRawArrayBuffer = ((char*)newArrayBuffer.get());
             auto oldRawArrayBuffer = ((char*)dataBuffers[i].rawBuffer.get());
             auto rawIndexBuffer = ((char*)indexBuffer.rawBuffer.get());
@@ -2108,7 +2110,7 @@ public:
     static ModelBufferData GetConvertSequenceIndexBuffers(ModelBufferData indexBuffer)  // 메모리 누수 주의
     {
         ModelBufferData newIndexBuffer = indexBuffer;
-        newIndexBuffer.rawBuffer = std::shared_ptr<void>(Shader::GL_TypeToNewArray(indexBuffer.glType, indexBuffer.size));
+        newIndexBuffer.rawBuffer = std::shared_ptr<void>((int*)Shader::GL_TypeToNewArray(indexBuffer.glType, indexBuffer.size));
         auto rawIndexBuffer = ((char*)newIndexBuffer.rawBuffer.get());
         auto size = newIndexBuffer.typeSize;
         for (int i = 0; i < indexBuffer.size; i++)
@@ -2770,10 +2772,12 @@ unsigned int LoadTextureImage(const char* imageDir)
     // UV 벗어날 경우 텍스쳐 반복
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
     // 텍스쳐 축소/확대 필터 설정
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 
     // 4. Generate Texture2D
     if (image)
@@ -3354,13 +3358,14 @@ void CameraControl::Update()
 {
     glm::vec3 finalPosition = this->gameObject.lock()->transform.lock()->position;
     glm::vec3 finalRotation = this->gameObject.lock()->transform.lock()->rotation;
-    if (CorePipeline::GetKeyDown('='))
-        offsetDistance += 0.5f;
     if (CorePipeline::GetKeyDown('-'))
+        offsetDistance += 0.5f;
+    if (CorePipeline::GetKeyDown('='))
         offsetDistance -= 0.5f;
     { // 카메라 플레이어 타겟 이동
         glm::vec2 deltaMousePos = CorePipeline::mousePosition - CorePipeline::mousePositionPrev;
         directionAngle += glm::vec3(-deltaMousePos.y, deltaMousePos.x, 0) * CorePipeline::mouseMoveSpeedPer;
+        directionAngle += glm::vec3(0,((CorePipeline::GetKey(';') ? 1 : 0) - (CorePipeline::GetKey('\'') ? 1 : 0)) * 0.007f,0);
         directionAngle.x = Min(Max(directionAngle.x, -89.999 * D2R), 89.999 * D2R);
 
         if (CorePipeline::GetKeyDown(27))
@@ -3383,7 +3388,7 @@ void CameraControl::Update()
         glm::vec3 lookPlayerRotation = glm::vec3(directionAngle.x, -directionAngle.y - 90 * D2R, 0);
 
         finalPosition = currentPosition + finalDirection;
-        finalRotation = lookPlayerRotation;
+        finalRotation = lookPlayerRotation;//+-+
     }
 
 
@@ -3422,14 +3427,14 @@ void AnimationController::LateUpdate()
 
 void LightComponent::Start()
 {
-    this->gameObject.lock()->transform.lock()->rotation = glm::vec3(40 * D2R, 0, 0);
+    this->gameObject.lock()->transform.lock()->rotation = glm::vec3(-50 * D2R, 0, 0);
 }
 
 void LightComponent::Update()
 {
     auto directionVec4 = this->gameObject.lock()->transform.lock()->GetModelToWorldAll() * glm::vec4(0, 0, -1, 0);
     lightDirection = glm::vec3(directionVec4.x, directionVec4.y, directionVec4.z);
-    this->gameObject.lock()->transform.lock()->rotation.y += 0.01f;
+    this->gameObject.lock()->transform.lock()->rotation.y += ((CorePipeline::GetKey(']')?1:0) - (CorePipeline::GetKey('[') ? 1 : 0)) * 0.007f;
 }
 
 void LightComponent::BeforeRender()
@@ -4369,6 +4374,12 @@ std::shared_ptr<GameObject> B;
 std::shared_ptr<GameObject> Player;
 
 
+unsigned int depthMapFBO;
+const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+unsigned int depthMap;
+
+unsigned int AOMap;
+
 int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정 { //--- 윈도우 생성하기
 {
     SetWindowPos(GetConsoleWindow(), 0, 0, 0, 1500, 800, SWP_SHOWWINDOW);
@@ -4436,6 +4447,20 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     CorePipeline::SoundLoading(music_BGM2, ".\\Sounds\\BGM2.mp3");
     CorePipeline::SoundLoading(music_attack, ".\\Sounds\\attack.mp3");
 
+
+    
+
+    glGenFramebuffers(1, &depthMapFBO);
+
+    glGenTextures(1, &depthMap);
+    glBindTexture(GL_TEXTURE_2D, depthMap);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+        SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
     world = std::shared_ptr<World>(new World());
     world->Init();
     /*
@@ -4465,8 +4490,10 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
 
 
 
-    std::shared_ptr<AssimpPacket> packetWorld = Loader::ModelLoad2(Loader::GetAssimpPacket("Back"), "./Models/World/AllJapanStreet.fbx");
+    std::shared_ptr<AssimpPacket> packetWorld = Loader::ModelLoad2(Loader::GetAssimpPacket("Back"), "./Models/World2/AllJapanStreet4.fbx");
     model = Model::ProcessModel(packetWorld);
+
+    AOMap = LoadTextureImage("./Models/World2/AOMap.png");
     
     //ModelTexture skyTexture;
     //skyTexture.id = LoadTextureImage("./Models/CubeMap.png");
@@ -4479,7 +4506,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     {
         auto backRenderer = backObject->AddComponent<ModelRenderer>(new ModelRenderer());
         Material* backMaterial = new Material(&backgroundShader);
-
+        backMaterial->uniformStorage->PushUniform(UniformSegment("_AOTex", GL_SAMPLER_2D).SetData((int)AOMap));
         
         int materialIndex = -1;
         if ((materialIndex = model->meshList[i]->materialIndex) != -1)
@@ -4531,6 +4558,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Body_N.png");
     model->modelTextureList.push_back(anbiTexture);
 
+
     anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Hair_N.png");
     model->modelTextureList.push_back(anbiTexture);
 
@@ -4540,6 +4568,16 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
     anbiTexture.id = LoadTextureImage("./Models/Anbi/Female_Face_lightmap.png");
     model->modelTextureList.push_back(anbiTexture);
 
+
+
+    anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Body_M.png");
+    model->modelTextureList.push_back(anbiTexture);
+
+    anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Weapon_M.png");
+    model->modelTextureList.push_back(anbiTexture);
+
+    anbiTexture.id = LoadTextureImage("./Models/Anbi/Anbi_Hair_M.png");
+    model->modelTextureList.push_back(anbiTexture);
 
     auto list = Loader::ConvertModelToModelDatas(model);
 
@@ -4561,6 +4599,7 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
             material = new Material(&animShader);
             material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[0].id));
             material->uniformStorage->PushUniform(UniformSegment("_NormalTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[4].id));
+            material->uniformStorage->PushUniform(UniformSegment("_MTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[8].id));
             material->para_culling = false;
         }
         if (i == 2)
@@ -4581,18 +4620,21 @@ int main(int argc, char** argv) //--- 윈도우 출력하고 콜백함수 설정
             material = new Material(&animShader);
             material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[2].id));
             material->uniformStorage->PushUniform(UniformSegment("_NormalTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[5].id));
+            material->uniformStorage->PushUniform(UniformSegment("_MTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[10].id));
         }
         if (i == 6)
         {
             material = new Material(&animShader);
             material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[3].id));
             material->uniformStorage->PushUniform(UniformSegment("_NormalTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[6].id));
+            material->uniformStorage->PushUniform(UniformSegment("_MTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[9].id));
         }
         if (i == 7)
         {
             material = new Material(&animShader);
             material->uniformStorage->PushUniform(UniformSegment("_MainTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[3].id));
             material->uniformStorage->PushUniform(UniformSegment("_NormalTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[6].id));
+            material->uniformStorage->PushUniform(UniformSegment("_MTex", GL_SAMPLER_2D).SetData((int)model->modelTextureList[9].id));
         }
         if (i == 8)
         {

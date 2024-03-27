@@ -50,10 +50,11 @@ void main ()
 		angle2 = angle - 1;
 	float finalSDFAtten = step(0, cosForward) * step(angle2, select);
 	finalSDFAtten = min(max(finalSDFAtten, 0), 1);
-	finalSDFAtten = finalSDFAtten * 0.5 + (1 - 0.5);
+	//finalSDFAtten = finalSDFAtten * 0.5 + (1 - 0.5);
 
 	color = vec4(texture(_MainTex, uv0CS).xyz, 1);
-	color = vec4(color.xyz * finalSDFAtten, 1);
+	color = vec4(mix(color.xyz, color.xyz * vec3(1,0.83f,0.921f), finalSDFAtten), 1);
+
 	//color = vec4(SDFColor.xyz, 1);
 	//color = vec4(finalSDFAtten,finalSDFAtten,finalSDFAtten,1);
 	//color = vec4(normalColor, 1);

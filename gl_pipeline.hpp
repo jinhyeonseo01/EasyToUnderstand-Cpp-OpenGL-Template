@@ -2,8 +2,8 @@
 
 #include "gl_pipeline.h"
 
-float CorePipeline::screenW = 1920;
-float CorePipeline::screenH = 1080;
+float CorePipeline::screenW = 2560;
+float CorePipeline::screenH = 1400;
 
 bool CorePipeline::isDebugMode = false;
 bool CorePipeline::isEditorMode = true;
