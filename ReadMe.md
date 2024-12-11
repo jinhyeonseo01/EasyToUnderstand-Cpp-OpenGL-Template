@@ -12,10 +12,30 @@ https://youtu.be/VYsvPh9Y_6E
 
 ![img](./docs/dev_4_6.gif)  
 ![img](./docs/dev_6_0.gif)  
+![img](./docs/dev_7_4.gif)  
 
 2023 University (한국공학대학교 2학년 2학기) Graphic OpenGL Rendering Pipeline Process Develop Project
 * * *
 # DevLog
+
+## <div align="center"> DevLog_7
+#### - Toon Shader & AO LightMap
+<details>
+    <summary>자세히</summary>
+
+#### 간단한 Toon Shader  
+
+![img](./docs/dev_7_3.png)  
+
+![img](./docs/dev_7_4.gif)  
+
+#### AO LightMap
+
+![img](./docs/dev_7_2.png)  
+**비교 사진**  
+![img](./docs/dev_7.png)  
+
+</details>
 
 ## <div align="center"> DevLog_6
 #### - Tangent Space & Normal Maping
